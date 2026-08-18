@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="AtmosVue — a Liquid Glass living weather map: rain intensity, rain chance, wind flow, pressure systems, storm & tropical depression tracking.">
+<meta name="description" content="AtmosVue — a Liquid Glass living weather map: rain intensity, rain chance, wind flow, pressure systems, LPA & storm tracking.">
 <title>AtmosVue — Liquid Glass Storm Map</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%2357a9ff'/%3E%3Ccircle cx='24' cy='24' r='9' fill='white' opacity='.55'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
@@ -13,33 +13,27 @@
 <div id="map" aria-label="Weather map"></div>
 <canvas id="windCanvas" aria-hidden="true"></canvas>
 
-<!-- ============ TOP BAR ============ -->
 <header class="topbar glass pane-top anim d0">
   <div class="brand"><span class="brand-orb" aria-hidden="true"></span><span class="brand-name">Atmos<em>Vue</em></span></div>
-
   <form class="search well" id="searchForm" role="search">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
     <input id="searchInput" type="text" placeholder="Search any city…" autocomplete="off" spellcheck="false" aria-label="Search for a city">
     <button type="button" class="clear-btn press" id="clearBtn" hidden aria-label="Clear search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
     <div class="suggest glass pane-top" id="suggest" role="listbox"></div>
   </form>
-
   <div class="units well" id="units" data-unit="c" role="group" aria-label="Temperature unit">
     <span class="thumb" aria-hidden="true"></span>
     <button type="button" data-u="c" class="press" aria-pressed="true">°C</button>
     <button type="button" data-u="f" class="press" aria-pressed="false">°F</button>
   </div>
-
   <button type="button" class="iconbtn well press" id="locateBtn" aria-label="Use my current location" title="Use my location">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/></svg>
   </button>
-
   <button type="button" class="iconbtn well press" id="dashBtn" aria-label="Toggle dashboard" title="Dashboard">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="16" rx="3.5"/><line x1="14.5" y1="4" x2="14.5" y2="20"/></svg>
   </button>
 </header>
 
-<!-- ============ LAYER FILTERS ============ -->
 <aside class="layers glass pane-top anim d1" aria-label="Map layers">
   <span class="eyebrow">Filters</span>
   <label class="lrow"><span class="lname">Rain intensity</span><span class="switch"><input type="checkbox" data-layer="rain" checked><i></i></span></label>
@@ -50,7 +44,6 @@
   <label class="lrow"><span class="lname">Live radar</span><span class="switch"><input type="checkbox" data-layer="radar"><i></i></span></label>
 </aside>
 
-<!-- ============ LEGEND ============ -->
 <section class="legend glass pane-top anim d2" id="legend" aria-label="Layer legend">
   <header class="legend-head">
     <span class="eyebrow">Legend</span>
@@ -59,7 +52,6 @@
   <div class="legend-body" id="legendBody"></div>
 </section>
 
-<!-- ============ SYSTEM CARD ============ -->
 <section class="syscard glass pane-top" id="syscard" aria-live="polite">
   <header class="sys-head">
     <div><h2 id="sysTitle">—</h2><p class="sub" id="sysSub">—</p></div>
@@ -68,18 +60,16 @@
   <div id="sysBody"></div>
 </section>
 
-<!-- ============ DASHBOARD (right pane → expandable internal page) ============ -->
 <section class="dash glass pane-top anim d3" id="dash" aria-label="Location dashboard">
   <header class="dash-head">
     <div class="place"><h1 id="placeName">—</h1><p class="sub" id="placeMeta">Locating…</p></div>
     <div class="dash-tools">
-      <span class="clock well" id="clockChip"><span class="live-dot" aria-hidden="true"></span><span id="clockText">--:--</span></span>
+      <span class="clock well"><span class="live-dot" aria-hidden="true"></span><span id="clockText">--:--</span></span>
       <button type="button" class="iconbtn well press" id="dashExpand" aria-label="Expand dashboard to full page" title="Expand">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
       </button>
     </div>
   </header>
-
   <div class="dash-scroll">
     <div class="hero-main">
       <div class="temp-block">
@@ -89,9 +79,7 @@
       <div class="hero-icon" id="heroIcon" aria-hidden="true"></div>
     </div>
     <div class="chips" id="heroChips"></div>
-
     <div class="stat-grid" id="statGrid"></div>
-
     <div class="sunbox">
       <header class="panel-head"><span class="eyebrow">Sun path</span><span class="daylen" id="dayLen">—</span></header>
       <svg id="sunSvg" viewBox="0 0 260 118" role="img" aria-label="Sun position">
@@ -103,7 +91,6 @@
       </svg>
       <div class="sun-times"><span class="st"><b id="sunrise">—</b></span><span class="st"><b id="sunset">—</b></span></div>
     </div>
-
     <div class="panel-head"><span class="eyebrow">Next 24 hours</span>
       <div class="rail-btns">
         <button type="button" class="iconbtn well press" id="hourPrev" aria-label="Scroll back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
@@ -111,15 +98,13 @@
       </div>
     </div>
     <div class="hour-strip" id="hourStrip"></div>
-
     <div class="panel-head"><span class="eyebrow">7-day outlook</span></div>
     <div class="day-list" id="dayList"></div>
   </div>
 </section>
 
-<div class="attrib" aria-label="Attribution">© OpenStreetMap · © CARTO · Radar © RainViewer · Weather © Open-Meteo</div>
+<div class="attrib" aria-label="Attribution">© Esri · © OpenStreetMap · Radar © RainViewer · Weather © Open-Meteo</div>
 
-<!-- ============ LOADER / TOAST ============ -->
 <div class="loader off" id="loader" role="status"><div class="loader-card">
   <div class="spinner-wrap"><div class="spinner-disc glass"></div><div class="spinner-ring"></div></div>
   <p class="loader-label" id="loaderLabel">Reading the sky…</p>
@@ -135,8 +120,8 @@
 "use strict";
 /* =====================================================================
    AtmosVue — map-first Liquid Glass weather.
-   Data: Open-Meteo (176-pt grid + point forecast), RainViewer radar,
-   BigDataCloud reverse geocode. Engine: Leaflet (CDN), logic all here.
+   Open-Meteo (176-pt grid + point forecast) · RainViewer radar ·
+   BigDataCloud reverse geocode · Esri Dark Gray basemap · Leaflet.
 ===================================================================== */
 const API = {
   forecast: "https://api.open-meteo.com/v1/forecast",
@@ -214,15 +199,16 @@ const IC = {
 };
 
 /* =====================================================================
-   MAP
+   MAP — Esri Dark Gray Canvas (reliable, key-free) + dark error tile
 ===================================================================== */
-if (!window.L) { toast("Map engine failed to load — check connection."); }
+const ERR_TILE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const map = L.map("map", { zoomControl:false, attributionControl:false, worldCopyJump:true, minZoom:2, maxZoom:11, zoomSnap:.5 })
              .setView([18, 8], 3);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-            { subdomains:"abcd", maxZoom:19, opacity:.94 }).addTo(map);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            { maxZoom:16, opacity:.96, errorTileUrl:ERR_TILE }).addTo(map);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+            { maxZoom:16, opacity:.9, errorTileUrl:ERR_TILE }).addTo(map);
 
-/* zoom pills */
 const zoomUI = document.createElement("div");
 zoomUI.className = "zoomui";
 zoomUI.innerHTML = '<button class="iconbtn well press" id="zin" aria-label="Zoom in">+</button><button class="iconbtn well press" id="zout" aria-label="Zoom out">−</button>';
@@ -238,13 +224,12 @@ let fieldSeq=0, fieldBounds=null;
 
 async function refreshField(){
   const b = map.getBounds();
-  let west=b.getWest(), east=b.getEast();
-  if (west > east) return;                       // antimeridian: skip
+  const west=b.getWest(), east=b.getEast();
+  if (west > east) return;
   const south=b.getSouth(), north=b.getNorth();
-  const lats=[], lngs=[];
+  const lats=[], lngs=[], la=[], lo=[];
   for (let r=0;r<ROWS;r++) lats.push(north-(north-south)*r/(ROWS-1));
   for (let c=0;c<COLS;c++) lngs.push(west+(east-west)*c/(COLS-1));
-  const la=[], lo=[];
   for (const a of lats) for (const o of lngs){ la.push(a.toFixed(2)); lo.push(o.toFixed(2)); }
   const seq=++fieldSeq;
   try{
@@ -270,7 +255,7 @@ function sample(lat,lng){
   const f=state.field; if(!f) return null;
   const {lats,lngs,cells}=f;
   const dy=(lats[0]-lats[ROWS-1])/(ROWS-1), dx=(lngs[COLS-1]-lngs[0])/(COLS-1);
-  let fy=(lats[0]-lat)/dy, fx=(lng-lngs[0])/dx;
+  const fy=(lats[0]-lat)/dy, fx=(lng-lngs[0])/dx;
   if (fy<0||fx<0||fy>ROWS-1||fx>COLS-1) return null;
   const r0=Math.floor(fy), c0=Math.floor(fx), tr=fy-r0, tc=fx-c0;
   const r1=Math.min(r0+1,ROWS-1), c1=Math.min(c0+1,COLS-1);
@@ -291,7 +276,6 @@ function rampColor(stops, v){
   }
   return stops[stops.length-1];
 }
-/* User palette: white(none)→yellow(light)→orange(heavy)→red(extreme)→dark red(torrential) */
 const RAIN_STOPS=[
  [0.0, 255,255,255,0], [0.2, 255,224,70,.55], [2, 255,205,40,.78],
  [10, 255,140,0,.85], [25, 255,45,60,.9], [60, 125,0,10,.95]];
@@ -306,7 +290,7 @@ const windColor = sp =>
   sp<20 ? "rgba(255,255,255,.55)" : sp<39 ? "rgba(140,225,255,.7)" :
   sp<62 ? "rgba(255,220,90,.8)" : sp<119 ? "rgba(255,140,60,.85)" : "rgba(255,70,70,.95)";
 
-/* ---------------- raster overlays (tiny canvas → smooth scaled img) ---------------- */
+/* ---------------- raster overlays ---------------- */
 const BLANK="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 const ovRain   = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.66, className:"ov ov-rain",   interactive:false}).addTo(map);
 const ovChance = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.55, className:"ov ov-chance", interactive:false}).addTo(map);
@@ -325,23 +309,23 @@ function fieldCanvas(get){
 function renderOverlays(){
   if (!state.field||!fieldBounds) return;
   ovRain.setBounds(fieldBounds); ovChance.setBounds(fieldBounds); ovPress.setBounds(fieldBounds);
-  if (state.layers.rain)   ovRain.setUrl(fieldCanvas(c=>rampColor(RAIN_STOPS,c.pr)));
-  if (state.layers.chance) ovChance.setUrl(fieldCanvas(c=>rampColor(CHANCE_STOPS,c.pop)));
+  if (state.layers.rain)     ovRain.setUrl(fieldCanvas(c=>rampColor(RAIN_STOPS,c.pr)));
+  if (state.layers.chance)   ovChance.setUrl(fieldCanvas(c=>rampColor(CHANCE_STOPS,c.pop)));
   if (state.layers.pressure) ovPress.setUrl(fieldCanvas(c=>PRESS_COLOR(c.p)));
 }
 
 /* =====================================================================
-   WIND FLOW — liquid particle advection
+   WIND FLOW — particle advection
 ===================================================================== */
 const wcv=els.windCanvas, wctx=wcv.getContext("2d");
-let parts=[], windOn=true, moving=false, rafId=0;
+let parts=[], windOn=true, moving=false;
 function sizeWind(){ wcv.width=innerWidth; wcv.height=innerHeight; }
 sizeWind(); addEventListener("resize", sizeWind);
-function spawn(){ const b=map.getBounds();
-  return { lat:lerp(b.getSouth(),b.getNorth(),Math.random()), lng:lerp(b.getWest(),b.getEast(),Math.random()), age:0 }; }
+const spawn=()=>{ const b=map.getBounds();
+  return { lat:lerp(b.getSouth(),b.getNorth(),Math.random()), lng:lerp(b.getWest(),b.getEast(),Math.random()), age:0 }; };
 function seedParts(){ const n=innerWidth<700?240:620; parts=Array.from({length:n},spawn); wctx.clearRect(0,0,wcv.width,wcv.height); }
 function windFrame(){
-  rafId=requestAnimationFrame(windFrame);
+  requestAnimationFrame(windFrame);
   if (!state.field||!windOn||moving||document.hidden) return;
   const z=map.getZoom(), k=0.05*Math.pow(1.55, z-3);
   wctx.globalCompositeOperation="destination-out"; wctx.fillStyle="rgba(0,0,0,.07)";
@@ -360,12 +344,11 @@ function windFrame(){
 map.on("movestart", ()=>{ moving=true; wctx.clearRect(0,0,wcv.width,wcv.height); });
 map.on("moveend",   ()=>{ moving=false; seedParts(); queueRefresh(); });
 map.on("zoomend",   ()=>{ seedParts(); });
-
 let refreshT=null;
 function queueRefresh(){ clearTimeout(refreshT); refreshT=setTimeout(refreshField, 700); }
 
 /* =====================================================================
-   PRESSURE SYSTEMS / STORMS / TROPICAL — detected client-side
+   SYSTEMS — LPAs always visible (with dev-% badge), storms, highs
 ===================================================================== */
 const sysGroup=L.layerGroup().addTo(map);
 const devChance=(p,sp,lat)=>Math.round(clamp(0.45*(1010-p)+0.9*Math.max(0,sp-25)+(Math.abs(lat)<=30?10:0),3,96));
@@ -394,7 +377,7 @@ function detectSystems(){
   pts.forEach((p,i)=>{
     if (used.has(i)) return;
     const cluster=[p]; used.add(i);
-    pts.forEach((q,j)=>{ if(!used.has(j)&&q.kind===p.kind&&Math.abs(q.lat-p.lat)<6&&Math.abs(q.lng-p.lng)<6){ cluster.push(q); used.add(j);} });
+    pts.forEach((q,j)=>{ if(!used.has(j)&&q.kind===p.kind&&Math.abs(q.lat-p.lat)<4&&Math.abs(q.lng-p.lng)<4){ cluster.push(q); used.add(j);} });
     const n=cluster.length;
     const agg={ kind:p.kind, n,
       lat:cluster.reduce((s,q)=>s+q.lat,0)/n, lng:cluster.reduce((s,q)=>s+q.lng,0)/n,
@@ -403,17 +386,24 @@ function detectSystems(){
     if (p.kind==="high") agg.p=Math.max(...cluster.map(q=>q.cell.p));
     systems.push(agg);
   });
-  systems.slice(0,40).forEach(s=>{
+  systems.slice(0,60).forEach(s=>{
     const trop=Math.abs(s.lat)<=23.5;
     const cls=classify(s.sp,s.lat);
-    const showStorm = state.layers.systems && (s.kind==="storm" || (s.kind==="low"&&cls));
-    const showPH = state.layers.pressure;
-    if (!showStorm && !showPH) return;
-    const type = showStorm&&cls ? "storm" : s.kind;
-    const label = type==="storm" ? "S" : type==="low" ? "L" : "H";
-    const html = `<div class="sys ${type}${trop&&type==="storm"?" trop":""}"><i class="ring"></i><span>${label}</span></div>`;
+    let type=null;
+    if (s.kind==="storm")            { if (state.layers.systems) type="storm"; }
+    else if (s.kind==="low")         { if (state.layers.systems&&cls) type="storm";
+                                       else if (state.layers.systems||state.layers.pressure) type="low"; }
+    else                             { if (state.layers.pressure) type="high"; }
+    if (!type) return;
+    const dev = s.kind==="low" ? devChance(s.p,s.sp,s.lat) : null;
+    const label = type==="storm"?"S":type==="low"?"L":"H";
+    const html = `<div class="sys ${type}${trop&&type!=="high"?" trop":""}"><i class="ring"></i><span>${label}</span>${type==="low"&&dev!=null?`<em>${dev}%</em>`:""}</div>`;
     const m=L.marker([s.lat,s.lng], { icon:L.divIcon({className:"syswrap", html, iconSize:[46,46], iconAnchor:[23,23]}) });
-    m.on("click", e=>{ L.DomEvent.stop(e||{}); state.suppressClick=true; setTimeout(()=>state.suppressClick=false,350); openSysCard(s,cls,trop); });
+    m.on("click", e=>{
+      if (e.originalEvent) L.DomEvent.stop(e.originalEvent);
+      state.suppressClick=true; setTimeout(()=>state.suppressClick=false,350);
+      openSysCard(s,cls,trop);
+    });
     m.addTo(sysGroup);
   });
 }
@@ -428,15 +418,15 @@ function openSysCard(s,cls,trop){
       <span>Rain rate</span><b>${fmtRain(s.pr)}</b>
       <span>Class</span><b>${cls??"—"}</b>
     </div>
-    ${dev!=null?`<div class="dev"><div class="dev-top"><span>Storm development chance</span><b>${dev}%</b></div><div class="meter"><i class="mfill" ></i></div><p class="dev-note">Heuristic from pressure deficit, wind &amp; latitude band.</p></div>`:""}
-    <div class="tags">${trop?'<span class="tag">Tropical</span>':'<span class="tag">Mid-latitude</span>'}${s.kind==="storm"?'<span class="tag hot">Active winds ≥ storm force</span>':""}</div>`;
+    ${dev!=null?`<div class="dev"><div class="dev-top"><span>Storm development chance</span><b>${dev}%</b></div><div class="meter"><i class="mfill"></i></div><p class="dev-note">Heuristic from pressure deficit, wind &amp; latitude band.</p></div>`:""}
+    <div class="tags">${trop?'<span class="tag">Tropical</span>':'<span class="tag">Mid-latitude</span>'}${s.kind==="storm"?'<span class="tag hot">Winds ≥ storm force</span>':""}</div>`;
   if (dev!=null) els.sysBody.querySelector(".mfill").style.setProperty("--pct", dev+"%");
   els.syscard.classList.add("show");
 }
 els.sysClose.addEventListener("click", ()=>els.syscard.classList.remove("show"));
 
 /* =====================================================================
-   LIVE RADAR (RainViewer) — animated past 2h + nowcast
+   LIVE RADAR (RainViewer)
 ===================================================================== */
 let radarLayer=null, radarFrames=[], radarIdx=0, radarTimer=null;
 async function radarOn(){
@@ -445,7 +435,7 @@ async function radarOn(){
     radarFrames=[...(j.radar?.past||[]).slice(-6), ...(j.radar?.nowcast||[])];
     if (!radarFrames.length) throw new Error("no frames");
     const tpl=f=>j.host+f.path+"/256/{z}/{x}/{y}/4/1_0.png";
-    radarLayer=L.tileLayer(tpl(radarFrames[0]), {opacity:.5, zIndex:450}).addTo(map);
+    radarLayer=L.tileLayer(tpl(radarFrames[0]), {opacity:.5, zIndex:450, errorTileUrl:ERR_TILE}).addTo(map);
     radarIdx=0;
     radarTimer=setInterval(()=>{ radarIdx=(radarIdx+1)%radarFrames.length; radarLayer.setUrl(tpl(radarFrames[radarIdx])); }, 700);
   }catch(e){ toast("Radar unavailable right now."); state.layers.radar=false; syncToggles(); }
@@ -453,7 +443,7 @@ async function radarOn(){
 function radarOff(){ clearInterval(radarTimer); if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; } }
 
 /* =====================================================================
-   LEGEND — every category with rain amount + wind strength
+   LEGEND
 ===================================================================== */
 function renderLegend(){
   const Ls=state.layers, u=state.unit;
@@ -461,7 +451,7 @@ function renderLegend(){
   const R=(a,b)=>u==="c"?`${a}–${b} mm/h`:`${(a*.0394).toFixed(2)}–${(b*.0394).toFixed(2)} in/h`;
   let h="";
   if (Ls.rain) h+=`<div class="lg-sec"><h3>Rain intensity</h3>
-    <div class="lg-row"><i class="sw" ></i><span>No rain</span><em>0 · wind ${W(0,19)}</em></div>
+    <div class="lg-row"><i class="sw"></i><span>No rain</span><em>0 · wind ${W(0,19)}</em></div>
     <div class="lg-row"><i class="sw sw-light"></i><span>Light</span><em>${R(.2,2)} · ${W(20,38)}</em></div>
     <div class="lg-row"><i class="sw sw-heavy"></i><span>Heavy</span><em>${R(2,10)} · ${W(39,61)}</em></div>
     <div class="lg-row"><i class="sw sw-extreme"></i><span>Extreme</span><em>${R(10,25)} · ${W(62,118)}</em></div>
@@ -478,7 +468,8 @@ function renderLegend(){
     <div class="lg-row"><i class="sw sw-high">H</i><span>High / ridge</span><em>&gt; 1024 hPa</em></div></div>`;
   if (Ls.systems) h+=`<div class="lg-sec"><h3>Systems</h3>
     <div class="lg-row"><i class="sw sw-storm">S</i><span>Storm / depression</span><em>wind ≥ 62 or p ≤ 996</em></div>
-    <div class="lg-row"><i class="sw sw-trop">T</i><span>Tropical system</span><em>within 23.5° of equator</em></div></div>`;
+    <div class="lg-row"><i class="sw sw-trop">T</i><span>Tropical system</span><em>within 23.5° of equator</em></div>
+    <div class="lg-row"><i class="sw sw-low">L%</i><span>LPA dev. chance</span><em>badge on marker</em></div></div>`;
   if (Ls.radar) h+=`<div class="lg-sec"><h3>Live radar</h3><p class="lg-note">Composite reflectivity · past 2 h + 30 min nowcast.</p></div>`;
   els.legendBody.innerHTML=h||'<p class="lg-note">All layers off.</p>';
 }
@@ -489,18 +480,18 @@ function syncToggles(){ $$(".layers input").forEach(i=>{ i.checked=state.layers[
 $$(".layers input").forEach(inp=>{
   inp.addEventListener("change", ()=>{
     const k=inp.dataset.layer; state.layers[k]=inp.checked;
-    if (k==="rain")   { inp.checked?renderOverlays():ovRain.setUrl(BLANK); }
-    if (k==="chance") { inp.checked?renderOverlays():ovChance.setUrl(BLANK); }
-    if (k==="pressure"){ inp.checked?renderOverlays():ovPress.setUrl(BLANK); detectSystems(); }
-    if (k==="wind")   { windOn=inp.checked; wcv.classList.toggle("off",!windOn); if(windOn)seedParts(); }
-    if (k==="systems") detectSystems();
-    if (k==="radar")  inp.checked?radarOn():radarOff();
+    if (k==="rain")     { inp.checked?renderOverlays():ovRain.setUrl(BLANK); }
+    if (k==="chance")   { inp.checked?renderOverlays():ovChance.setUrl(BLANK); }
+    if (k==="pressure") { inp.checked?renderOverlays():ovPress.setUrl(BLANK); detectSystems(); }
+    if (k==="wind")     { windOn=inp.checked; wcv.classList.toggle("off",!windOn); if(windOn)seedParts(); }
+    if (k==="systems")  detectSystems();
+    if (k==="radar")    inp.checked?radarOn():radarOff();
     if (!state.field) refreshField();
     renderLegend();
   });
 });
 
-/* ---------------- map click → ripple + dashboard location ---------------- */
+/* ---------------- map click → ripple + dashboard ---------------- */
 map.on("click", e=>{
   if (state.suppressClick) return;
   const rip=document.createElement("i"); rip.className="ripple";
@@ -510,7 +501,7 @@ map.on("click", e=>{
 });
 
 /* =====================================================================
-   DASHBOARD (right pane / internal full page)
+   DASHBOARD
 ===================================================================== */
 async function loadPlace(place){
   showLoader(`Tuning into ${place.name}…`);
@@ -592,8 +583,11 @@ function startClock(){
 els.hourPrev.addEventListener("click",()=>els.hourStrip.scrollBy({left:-300,behavior:"smooth"}));
 els.hourNext.addEventListener("click",()=>els.hourStrip.scrollBy({left:300,behavior:"smooth"}));
 
-/* dashboard open / expand-to-page */
-els.dashBtn.addEventListener("click", ()=>els.dash.classList.toggle("open"));
+function setDash(open){
+  els.dash.classList.toggle("open", open);
+  document.body.classList.toggle("dash-open", open);
+}
+els.dashBtn.addEventListener("click", ()=>setDash(!els.dash.classList.contains("open")));
 els.dashExpand.addEventListener("click", ()=>{
   els.dash.classList.toggle("full");
   document.body.classList.toggle("page-dash", els.dash.classList.contains("full"));
@@ -663,7 +657,7 @@ els.locateBtn.addEventListener("click", ()=>{
    BOOT
 ===================================================================== */
 renderLegend();
-if (matchMedia("(min-width:1180px)").matches) els.dash.classList.add("open");
+if (matchMedia("(min-width:1180px)").matches) setDash(true);
 seedParts(); windFrame();
 refreshField();
 showLoader("Finding your sky…");
