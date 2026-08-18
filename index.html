@@ -1,687 +1,679 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="AtmosVue — a Liquid Glass weather experience. Live forecasts, sun path, hourly and 7-day outlook.">
-  <meta name="theme-color" content="#2f7fd6">
-  <title>AtmosVue — Liquid Glass Weather</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%2357a9ff'/%3E%3Ccircle cx='24' cy='24' r='9' fill='white' opacity='.55'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="AtmosVue — a Liquid Glass living weather map: rain intensity, rain chance, wind flow, pressure systems, storm & tropical depression tracking.">
+<title>AtmosVue — Liquid Glass Storm Map</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%2357a9ff'/%3E%3Ccircle cx='24' cy='24' r='9' fill='white' opacity='.55'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
 </head>
-<body data-theme="clear-day">
+<body data-theme="clear-night">
 
-  <!-- ======== ENVIRONMENT: the scene the glass refracts ======== -->
-  <div class="scene" aria-hidden="true">
-    <div class="mesh">
-      <i class="blob b1"></i>
-      <i class="blob b2"></i>
-      <i class="blob b3"></i>
-      <i class="blob b4"></i>
-    </div>
-    <div class="fx fx-rain"></div>
-    <div class="fx fx-snow"></div>
-    <div class="fx fx-stars"></div>
-    <div class="fx fx-flash"></div>
-    <div class="grain"></div>
+<div id="map" aria-label="Weather map"></div>
+<canvas id="windCanvas" aria-hidden="true"></canvas>
+
+<!-- ============ TOP BAR ============ -->
+<header class="topbar glass pane-top anim d0">
+  <div class="brand"><span class="brand-orb" aria-hidden="true"></span><span class="brand-name">Atmos<em>Vue</em></span></div>
+
+  <form class="search well" id="searchForm" role="search">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    <input id="searchInput" type="text" placeholder="Search any city…" autocomplete="off" spellcheck="false" aria-label="Search for a city">
+    <button type="button" class="clear-btn press" id="clearBtn" hidden aria-label="Clear search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    <div class="suggest glass pane-top" id="suggest" role="listbox"></div>
+  </form>
+
+  <div class="units well" id="units" data-unit="c" role="group" aria-label="Temperature unit">
+    <span class="thumb" aria-hidden="true"></span>
+    <button type="button" data-u="c" class="press" aria-pressed="true">°C</button>
+    <button type="button" data-u="f" class="press" aria-pressed="false">°F</button>
   </div>
 
-  <!-- ======== TOP BAR ======== -->
-  <header class="topbar glass pane-top anim d0">
-    <div class="brand">
-      <span class="brand-orb" aria-hidden="true"></span>
-      <span class="brand-name">Atmos<em>Vue</em></span>
-    </div>
+  <button type="button" class="iconbtn well press" id="locateBtn" aria-label="Use my current location" title="Use my location">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/></svg>
+  </button>
 
-    <form class="search well" id="searchForm" role="search">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
-      </svg>
-      <input id="searchInput" type="text" placeholder="Search any city…" autocomplete="off" spellcheck="false" aria-label="Search for a city">
-      <button type="button" class="clear-btn press" id="clearBtn" hidden aria-label="Clear search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-        </svg>
+  <button type="button" class="iconbtn well press" id="dashBtn" aria-label="Toggle dashboard" title="Dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="16" rx="3.5"/><line x1="14.5" y1="4" x2="14.5" y2="20"/></svg>
+  </button>
+</header>
+
+<!-- ============ LAYER FILTERS ============ -->
+<aside class="layers glass pane-top anim d1" aria-label="Map layers">
+  <span class="eyebrow">Filters</span>
+  <label class="lrow"><span class="lname">Rain intensity</span><span class="switch"><input type="checkbox" data-layer="rain" checked><i></i></span></label>
+  <label class="lrow"><span class="lname">Rain chance</span><span class="switch"><input type="checkbox" data-layer="chance" checked><i></i></span></label>
+  <label class="lrow"><span class="lname">Wind flow</span><span class="switch"><input type="checkbox" data-layer="wind" checked><i></i></span></label>
+  <label class="lrow"><span class="lname">Pressure systems</span><span class="switch"><input type="checkbox" data-layer="pressure"><i></i></span></label>
+  <label class="lrow"><span class="lname">Storms &amp; tropical</span><span class="switch"><input type="checkbox" data-layer="systems" checked><i></i></span></label>
+  <label class="lrow"><span class="lname">Live radar</span><span class="switch"><input type="checkbox" data-layer="radar"><i></i></span></label>
+</aside>
+
+<!-- ============ LEGEND ============ -->
+<section class="legend glass pane-top anim d2" id="legend" aria-label="Layer legend">
+  <header class="legend-head">
+    <span class="eyebrow">Legend</span>
+    <button type="button" class="iconbtn well press legend-btn" id="legendBtn" aria-label="Collapse legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9.5 12 15l6-5.5"/></svg></button>
+  </header>
+  <div class="legend-body" id="legendBody"></div>
+</section>
+
+<!-- ============ SYSTEM CARD ============ -->
+<section class="syscard glass pane-top" id="syscard" aria-live="polite">
+  <header class="sys-head">
+    <div><h2 id="sysTitle">—</h2><p class="sub" id="sysSub">—</p></div>
+    <button type="button" class="iconbtn well press" id="sysClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+  </header>
+  <div id="sysBody"></div>
+</section>
+
+<!-- ============ DASHBOARD (right pane → expandable internal page) ============ -->
+<section class="dash glass pane-top anim d3" id="dash" aria-label="Location dashboard">
+  <header class="dash-head">
+    <div class="place"><h1 id="placeName">—</h1><p class="sub" id="placeMeta">Locating…</p></div>
+    <div class="dash-tools">
+      <span class="clock well" id="clockChip"><span class="live-dot" aria-hidden="true"></span><span id="clockText">--:--</span></span>
+      <button type="button" class="iconbtn well press" id="dashExpand" aria-label="Expand dashboard to full page" title="Expand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
       </button>
-      <div class="suggest glass pane-top" id="suggest" role="listbox" aria-label="City suggestions"></div>
-    </form>
-
-    <div class="units well" id="units" data-unit="c" role="group" aria-label="Temperature unit">
-      <span class="thumb" aria-hidden="true"></span>
-      <button type="button" data-u="c" class="press" aria-pressed="true">°C</button>
-      <button type="button" data-u="f" class="press" aria-pressed="false">°F</button>
     </div>
-
-    <button type="button" class="iconbtn well press" id="locateBtn" aria-label="Use my current location" title="Use my location">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
-        <line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/>
-        <line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/>
-      </svg>
-    </button>
   </header>
 
-  <!-- ======== STAGE ======== -->
-  <main class="stage">
-
-    <!-- Current conditions -->
-    <section class="glass pane-top hero anim d1" id="heroPane" aria-live="polite">
-      <div class="hero-top">
-        <div class="place">
-          <h1 id="placeName">—</h1>
-          <p class="sub" id="placeMeta">Locating…</p>
-        </div>
-        <div class="clock well" title="Local time">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span id="clockText">--:--</span>
-        </div>
+  <div class="dash-scroll">
+    <div class="hero-main">
+      <div class="temp-block">
+        <div class="temp" id="heroTemp">--<span class="deg">°</span></div>
+        <p class="cond-label" id="heroCond">Reading the sky…</p>
       </div>
-
-      <div class="hero-main">
-        <div class="temp-block">
-          <div class="temp" id="heroTemp">--<span class="deg">°</span></div>
-          <p class="cond-label" id="heroCond">Reading the sky…</p>
-        </div>
-        <div class="hero-icon" id="heroIcon" aria-hidden="true"></div>
-      </div>
-
-      <div class="chips" id="heroChips"></div>
-    </section>
-
-    <!-- Right rail -->
-    <aside class="side">
-      <section class="glass panel stats anim d2" aria-label="Detailed conditions">
-        <header class="panel-head">
-          <span class="eyebrow">Conditions</span>
-          <span class="live"><i class="live-dot" aria-hidden="true"></i>Live</span>
-        </header>
-        <div class="stat-grid" id="statGrid"></div>
-      </section>
-
-      <section class="glass panel sun anim d3" aria-label="Sun path">
-        <header class="panel-head">
-          <span class="eyebrow">Sun path</span>
-          <span class="daylen" id="dayLen">—</span>
-        </header>
-        <svg id="sunSvg" viewBox="0 0 260 118" role="img" aria-label="Sun position between sunrise and sunset">
-          <line class="horizon" x1="6" y1="104" x2="254" y2="104"/>
-          <path class="arc-bg"   d="M14 104 Q 130 -6 246 104"/>
-          <path class="arc-fill" d="M14 104 Q 130 -6 246 104" id="arcFill"/>
-          <circle class="sun-halo" id="sunHalo" r="11" cx="14" cy="104"/>
-          <circle class="sun-dot"  id="sunDot"  r="6"  cx="14" cy="104"/>
-        </svg>
-        <div class="sun-times">
-          <span class="st">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-              <path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 3v5M9.5 5.5 12 3l2.5 2.5"/>
-            </svg>
-            <b id="sunrise">—</b>
-          </span>
-          <span class="st">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-              <path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 8V3M9.5 5.5 12 8l2.5-2.5"/>
-            </svg>
-            <b id="sunset">—</b>
-          </span>
-        </div>
-      </section>
-    </aside>
-
-    <!-- Hourly -->
-    <section class="glass panel hourly anim d4" aria-label="Hourly forecast">
-      <header class="panel-head">
-        <span class="eyebrow">Next 24 hours</span>
-        <div class="rail-btns">
-          <button type="button" class="iconbtn well press" id="hourPrev" aria-label="Scroll hours back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
-          </button>
-          <button type="button" class="iconbtn well press" id="hourNext" aria-label="Scroll hours forward">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>
-          </button>
-        </div>
-      </header>
-      <div class="hour-strip" id="hourStrip" tabindex="0" aria-label="Scrollable hourly forecast"></div>
-    </section>
-
-    <!-- 7-day -->
-    <section class="glass panel daily anim d5" aria-label="Seven day forecast">
-      <header class="panel-head">
-        <span class="eyebrow">7-day outlook</span>
-        <span class="eyebrow dim-note">tap a row to feel the glass</span>
-      </header>
-      <div class="day-list" id="dayList"></div>
-    </section>
-  </main>
-
-  <footer class="foot anim d6">
-    AtmosVue · Liquid Glass study · Live data by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
-  </footer>
-
-  <!-- ======== LOADER ======== -->
-  <div class="loader" id="loader" role="status" aria-live="polite">
-    <div class="loader-card">
-      <div class="spinner-wrap">
-        <div class="spinner-disc glass"></div>
-        <div class="spinner-ring"></div>
-      </div>
-      <p class="loader-label" id="loaderLabel">Reading the sky…</p>
+      <div class="hero-icon" id="heroIcon" aria-hidden="true"></div>
     </div>
+    <div class="chips" id="heroChips"></div>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="sunbox">
+      <header class="panel-head"><span class="eyebrow">Sun path</span><span class="daylen" id="dayLen">—</span></header>
+      <svg id="sunSvg" viewBox="0 0 260 118" role="img" aria-label="Sun position">
+        <line class="horizon" x1="6" y1="104" x2="254" y2="104"/>
+        <path class="arc-bg" d="M14 104 Q 130 -6 246 104"/>
+        <path class="arc-fill" id="arcFill" d="M14 104 Q 130 -6 246 104"/>
+        <circle class="sun-halo" id="sunHalo" r="11" cx="14" cy="104"/>
+        <circle class="sun-dot" id="sunDot" r="6" cx="14" cy="104"/>
+      </svg>
+      <div class="sun-times"><span class="st"><b id="sunrise">—</b></span><span class="st"><b id="sunset">—</b></span></div>
+    </div>
+
+    <div class="panel-head"><span class="eyebrow">Next 24 hours</span>
+      <div class="rail-btns">
+        <button type="button" class="iconbtn well press" id="hourPrev" aria-label="Scroll back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+        <button type="button" class="iconbtn well press" id="hourNext" aria-label="Scroll forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
+      </div>
+    </div>
+    <div class="hour-strip" id="hourStrip"></div>
+
+    <div class="panel-head"><span class="eyebrow">7-day outlook</span></div>
+    <div class="day-list" id="dayList"></div>
   </div>
+</section>
 
-  <!-- ======== TOAST ======== -->
-  <div class="toast glass pane-top" id="toast" role="alert">
-    <svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="10" x2="12" y2="14.5"/><circle cx="12" cy="17.3" r=".4" fill="currentColor"/>
-    </svg>
-    <span id="toastMsg"></span>
-  </div>
+<div class="attrib" aria-label="Attribution">© OpenStreetMap · © CARTO · Radar © RainViewer · Weather © Open-Meteo</div>
 
-  <script>
-  (() => {
-    "use strict";
+<!-- ============ LOADER / TOAST ============ -->
+<div class="loader off" id="loader" role="status"><div class="loader-card">
+  <div class="spinner-wrap"><div class="spinner-disc glass"></div><div class="spinner-ring"></div></div>
+  <p class="loader-label" id="loaderLabel">Reading the sky…</p>
+</div></div>
+<div class="toast glass pane-top" id="toast" role="alert">
+  <svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="10" x2="12" y2="14.5"/></svg>
+  <span id="toastMsg"></span>
+</div>
 
-    /* ============================================================
-       AtmosVue — all logic lives here.
-       APIs: Open-Meteo (forecast + geocoding, no key required)
-             BigDataCloud reverse-geocode (no key required)
-    ============================================================ */
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(() => {
+"use strict";
+/* =====================================================================
+   AtmosVue — map-first Liquid Glass weather.
+   Data: Open-Meteo (176-pt grid + point forecast), RainViewer radar,
+   BigDataCloud reverse geocode. Engine: Leaflet (CDN), logic all here.
+===================================================================== */
+const API = {
+  forecast: "https://api.open-meteo.com/v1/forecast",
+  geocode:  "https://geocoding-api.open-meteo.com/v1/search",
+  reverse:  "https://api.bigdatacloud.net/data/reverse-geocode-client",
+  radar:    "https://api.rainviewer.com/public/weather-maps.json"
+};
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const lerp = (a,b,t) => a + (b-a)*t;
 
-    const API = {
-      forecast: "https://api.open-meteo.com/v1/forecast",
-      geocode:  "https://geocoding-api.open-meteo.com/v1/search",
-      reverse:  "https://api.bigdatacloud.net/data/reverse-geocode-client"
-    };
+const els = {};
+["map","windCanvas","searchForm","searchInput","clearBtn","suggest","units","locateBtn","dashBtn",
+ "legend","legendBody","legendBtn","syscard","sysTitle","sysSub","sysBody","sysClose",
+ "dash","dashExpand","placeName","placeMeta","clockText","heroTemp","heroCond","heroIcon","heroChips",
+ "statGrid","sunSvg","arcFill","sunDot","sunHalo","dayLen","sunrise","sunset","hourStrip","hourPrev",
+ "hourNext","dayList","loader","loaderLabel","toast","toastMsg"]
+ .forEach(id => els[id] = document.getElementById(id));
 
-    const $  = (s, r = document) => r.querySelector(s);
-    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const state = { place:null, data:null, unit:"c", tz:null, clockTimer:null,
+                layers:{rain:true, chance:true, wind:true, pressure:false, systems:true, radar:false},
+                field:null, suppressClick:false };
 
-    const els = {
-      body: document.body,
-      loader: $("#loader"), loaderLabel: $("#loaderLabel"),
-      toast: $("#toast"), toastMsg: $("#toastMsg"),
-      searchForm: $("#searchForm"), searchInput: $("#searchInput"),
-      clearBtn: $("#clearBtn"), suggest: $("#suggest"),
-      units: $("#units"), locateBtn: $("#locateBtn"),
-      placeName: $("#placeName"), placeMeta: $("#placeMeta"),
-      clockText: $("#clockText"),
-      heroPane: $("#heroPane"), heroTemp: $("#heroTemp"),
-      heroCond: $("#heroCond"), heroIcon: $("#heroIcon"), heroChips: $("#heroChips"),
-      statGrid: $("#statGrid"),
-      sunSvg: $("#sunSvg"), arcFill: $("#arcFill"), sunDot: $("#sunDot"), sunHalo: $("#sunHalo"),
-      dayLen: $("#dayLen"), sunrise: $("#sunrise"), sunset: $("#sunset"),
-      hourStrip: $("#hourStrip"), hourPrev: $("#hourPrev"), hourNext: $("#hourNext"),
-      dayList: $("#dayList")
-    };
+/* ---------------- helpers ---------------- */
+async function getJSON(url, ms=12000){
+  const c = new AbortController(); const t = setTimeout(()=>c.abort(), ms);
+  try { const r = await fetch(url, {signal:c.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+const fmtTemp = c => state.unit==="c" ? Math.round(c) : Math.round(c*9/5+32);
+const degSym  = () => state.unit==="c" ? "°C" : "°F";
+const fmtWind = k => state.unit==="c" ? Math.round(k)+" km/h" : Math.round(k*0.621371)+" mph";
+const fmtRain = m => state.unit==="c" ? m.toFixed(1)+" mm/h" : (m*0.0394).toFixed(2)+" in/h";
+const fmtClock = iso => new Date(iso).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+const fmtHour = iso => { const h=+iso.slice(11,13); return (h%12||12)+(h<12?"AM":"PM"); };
+const flag = cc => cc ? String.fromCodePoint(...[...cc.toUpperCase()].map(c=>0x1F1E6+c.charCodeAt(0)-65)) : "";
+const fmtLat = (la,lo) => Math.abs(la).toFixed(1)+"°"+(la>=0?"N":"S")+" "+Math.abs(lo).toFixed(1)+"°"+(lo>=0?"E":"W");
 
-    const state = { place: null, data: null, unit: "c", tz: null, clockTimer: null };
+let toastTimer=null;
+function toast(m){ els.toastMsg.textContent=m; els.toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>els.toast.classList.remove("show"),4600); }
+const showLoader = m => { els.loaderLabel.textContent=m||"Reading the sky…"; els.loader.classList.remove("off"); };
+const hideLoader = () => els.loader.classList.add("off");
 
-    /* ---------------- WMO weather-code dictionary ---------------- */
-    const WMO = {
-      0:["Clear sky","sun"],1:["Mostly clear","sun"],2:["Partly cloudy","partly"],3:["Overcast","cloud"],
-      45:["Fog","fog"],48:["Icy fog","fog"],
-      51:["Light drizzle","drizzle"],53:["Drizzle","drizzle"],55:["Heavy drizzle","drizzle"],
-      56:["Freezing drizzle","drizzle"],57:["Freezing drizzle","drizzle"],
-      61:["Light rain","rain"],63:["Rain","rain"],65:["Heavy rain","rain"],
-      66:["Freezing rain","rain"],67:["Freezing rain","rain"],
-      71:["Light snow","snow"],73:["Snow","snow"],75:["Heavy snow","snow"],77:["Snow grains","snow"],
-      80:["Light showers","rain"],81:["Showers","rain"],82:["Heavy showers","rain"],
-      85:["Snow showers","snow"],86:["Snow showers","snow"],
-      95:["Thunderstorm","thunder"],96:["Thunderstorm","thunder"],99:["Hailstorm","thunder"]
-    };
-    const wmoInfo  = code => WMO[code] || ["Unknown","cloud"];
-    const iconKey  = (code, isDay = true) => {
-      const k = wmoInfo(code)[1];
-      if (!isDay && k === "sun")   return "moon";
-      if (!isDay && k === "partly") return "partlynight";
-      return k;
-    };
-    const themeFor = (code, isDay) => {
-      const k = wmoInfo(code)[1];
-      if (k === "sun")    return isDay ? "clear-day" : "clear-night";
-      if (k === "partly") return isDay ? "clear-day" : "clear-night";
-      if (k === "fog")    return "fog";
-      if (k === "snow")   return "snow";
-      if (k === "thunder")return "thunder";
-      if (k === "drizzle" || k === "rain") return "rain";
-      return "overcast";
-    };
+/* ---------------- WMO + animated icons ---------------- */
+const WMO = {0:["Clear sky","sun"],1:["Mostly clear","sun"],2:["Partly cloudy","partly"],3:["Overcast","cloud"],45:["Fog","fog"],48:["Icy fog","fog"],51:["Light drizzle","drizzle"],53:["Drizzle","drizzle"],55:["Heavy drizzle","drizzle"],56:["Freezing drizzle","drizzle"],57:["Freezing drizzle","drizzle"],61:["Light rain","rain"],63:["Rain","rain"],65:["Heavy rain","rain"],66:["Freezing rain","rain"],67:["Freezing rain","rain"],71:["Light snow","snow"],73:["Snow","snow"],75:["Heavy snow","snow"],77:["Snow grains","snow"],80:["Light showers","rain"],81:["Showers","rain"],82:["Heavy showers","rain"],85:["Snow showers","snow"],86:["Snow showers","snow"],95:["Thunderstorm","thunder"],96:["Thunderstorm","thunder"],99:["Hailstorm","thunder"]};
+const wmoInfo = c => WMO[c]||["Unknown","cloud"];
+const iconKey = (c,d=true)=>{const k=wmoInfo(c)[1]; if(!d&&k==="sun")return"moon"; if(!d&&k==="partly")return"partlynight"; return k;};
+const themeFor = (c,d)=>{const k=wmoInfo(c)[1]; if(k==="sun"||k==="partly")return d?"clear-day":"clear-night"; if(k==="fog")return"fog"; if(k==="snow")return"snow"; if(k==="thunder")return"thunder"; if(k==="drizzle"||k==="rain")return"rain"; return"overcast";};
 
-    /* ---------------- Animated weather icon set (SVG) ---------------- */
-    const CLOUD = '<path class="cloudbody" fill="#FFFFFF" fill-opacity=".96" stroke="rgba(20,42,72,.10)" stroke-width="1" d="M46 48H21a10 10 0 1 1 2.6-19.7A14 14 0 0 1 50.8 31 9 9 0 0 1 46 48Z"/>';
-    const SUNRAYS = '<g class="rays" stroke="#FFD75E" stroke-width="3.4" stroke-linecap="round">' +
-      '<line x1="32" y1="6" x2="32" y2="12.5"/><line x1="32" y1="51.5" x2="32" y2="58"/>' +
-      '<line x1="6" y1="32" x2="12.5" y2="32"/><line x1="51.5" y1="32" x2="58" y2="32"/>' +
-      '<line x1="13.6" y1="13.6" x2="18.2" y2="18.2"/><line x1="45.8" y1="45.8" x2="50.4" y2="50.4"/>' +
-      '<line x1="13.6" y1="50.4" x2="18.2" y2="45.8"/><line x1="45.8" y1="18.2" x2="50.4" y2="13.6"/></g>';
+const CLOUD='<path class="cloudbody" fill="#FFF" fill-opacity=".96" stroke="rgba(20,42,72,.1)" d="M46 48H21a10 10 0 1 1 2.6-19.7A14 14 0 0 1 50.8 31 9 9 0 0 1 46 48Z"/>';
+const ICONS = {
+ sun:'<g class="spin-sun"><g class="rays" stroke="#FFD75E" stroke-width="3.4" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="12.5"/><line x1="32" y1="51.5" x2="32" y2="58"/><line x1="6" y1="32" x2="12.5" y2="32"/><line x1="51.5" y1="32" x2="58" y2="32"/><line x1="13.6" y1="13.6" x2="18.2" y2="18.2"/><line x1="45.8" y1="45.8" x2="50.4" y2="50.4"/><line x1="13.6" y1="50.4" x2="18.2" y2="45.8"/><line x1="45.8" y1="18.2" x2="50.4" y2="13.6"/></g><circle cx="32" cy="32" r="12.5" fill="#FFD75E"/></g>',
+ moon:'<path fill="#EAF2FF" d="M40 6a25 25 0 1 0 18 34A21 21 0 0 1 40 6Z"/><circle class="tw tw1" cx="46" cy="13" r="1.7" fill="#EAF2FF"/><circle class="tw tw2" cx="54" cy="23" r="1.2" fill="#EAF2FF"/>',
+ partly:'<g class="spin-sun"><g class="rays" stroke="#FFD75E" stroke-width="2.6" stroke-linecap="round"><line x1="20" y1="5.5" x2="20" y2="9.5"/><line x1="5.5" y1="20" x2="9.5" y2="20"/><line x1="9.8" y1="9.8" x2="12.6" y2="12.6"/><line x1="20" y1="34.5" x2="20" y2="30.5"/><line x1="34.5" y1="20" x2="30.5" y2="20"/><line x1="30.2" y1="9.8" x2="27.4" y2="12.6"/></g><circle cx="20" cy="20" r="8.5" fill="#FFD75E"/></g><g class="drift">'+CLOUD+'</g>',
+ partlynight:'<path fill="#EAF2FF" d="M22 5a13.5 13.5 0 1 0 9.7 18.4A11.3 11.3 0 0 1 22 5Z"/><g class="drift">'+CLOUD+'</g>',
+ cloud:'<g class="drift"><path fill="#FFF" fill-opacity=".55" d="M50 30a10 10 0 0 0-9.6-7.4A13 13 0 0 0 28 18Z"/>'+CLOUD+'</g>',
+ fog:'<g class="drift" transform="translate(0,-4)">'+CLOUD+'</g><g class="foglines" stroke="#DDE7F2" stroke-width="3" stroke-linecap="round"><line class="fl fl1" x1="14" y1="52" x2="46" y2="52"/><line class="fl fl2" x1="20" y1="57.5" x2="52" y2="57.5"/><line class="fl fl3" x1="14" y1="63" x2="40" y2="63"/></g>',
+ drizzle:'<g class="drift">'+CLOUD+'</g><g stroke="#7FC8FF" stroke-width="3" stroke-linecap="round"><line class="fall f1" x1="26" y1="51" x2="24.6" y2="56"/><line class="fall f2" x1="38" y1="51" x2="36.6" y2="56"/></g>',
+ rain:'<g class="drift">'+CLOUD+'</g><g stroke="#7FC8FF" stroke-width="3.2" stroke-linecap="round"><line class="fall f1" x1="24" y1="51" x2="21.8" y2="59"/><line class="fall f2" x1="33" y1="51" x2="30.8" y2="59"/><line class="fall f3" x1="42" y1="51" x2="39.8" y2="59"/></g>',
+ snow:'<g class="drift">'+CLOUD+'</g><g fill="#FFF"><circle class="flake k1" cx="24" cy="53" r="2.1"/><circle class="flake k2" cx="33" cy="55" r="1.7"/><circle class="flake k3" cx="42" cy="53" r="2.1"/></g>',
+ thunder:'<g class="drift">'+CLOUD+'</g><polygon class="bolt" fill="#FFD95E" points="33,42 25,54 31,54 27.5,63 40,49 33.6,49 38,42"/>'
+};
+const iconSVG = k => '<svg class="wicon" viewBox="0 0 64 64" aria-hidden="true">'+(ICONS[k]||ICONS.cloud)+'</svg>';
+const IC = {
+ thermo:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 13.6V5a2 2 0 1 1 4 0v8.6a4.5 4.5 0 1 1-4 0Z"/></svg>',
+ hilow:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14V5M4.5 7.5 7 5l2.5 2.5M17 10v9M14.5 16.5 17 19l2.5-2.5"/></svg>',
+ wind:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8.5h10a2.6 2.6 0 1 0-2.5-3.3M3 12.5h15a2.6 2.6 0 1 1-2.5 3.3M3 16.5h7a2.3 2.3 0 1 1-2.2 3"/></svg>',
+ drop:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/></svg>',
+ gauge:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.6-4.6"/></svg>',
+ uv:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6"/></svg>',
+ cloudS:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17.5 18h-9a4.5 4.5 0 1 1 1.2-8.9A6 6 0 0 1 21 11.5 3.8 3.8 0 0 1 17.5 18Z"/></svg>',
+ pop:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/></svg>',
+ arrow:'<svg class="wind-arrow" viewBox="0 0 24 24"><path d="M12 3.2 17.6 17l-5.6-3-5.6 3Z" fill="currentColor"/></svg>'
+};
 
-    const ICONS = {
-      sun:   `<g class="spin-sun">${SUNRAYS}<circle class="core" cx="32" cy="32" r="12.5" fill="#FFD75E"/></g>`,
-      moon:  `<path class="core" fill="#EAF2FF" d="M40 6a25 25 0 1 0 18 34A21 21 0 0 1 40 6Z"/>
-              <circle class="tw tw1" cx="46" cy="13" r="1.7" fill="#EAF2FF"/>
-              <circle class="tw tw2" cx="54" cy="23" r="1.2" fill="#EAF2FF"/>`,
-      partly:`<g class="spin-sun mini"><g class="rays" stroke="#FFD75E" stroke-width="2.6" stroke-linecap="round">
-              <line x1="20" y1="5.5" x2="20" y2="9.5"/><line x1="5.5" y1="20" x2="9.5" y2="20"/>
-              <line x1="9.8" y1="9.8" x2="12.6" y2="12.6"/><line x1="9.8" y1="30.2" x2="12.6" y2="27.4"/>
-              <line x1="20" y1="34.5" x2="20" y2="30.5"/><line x1="34.5" y1="20" x2="30.5" y2="20"/>
-              <line x1="30.2" y1="9.8" x2="27.4" y2="12.6"/></g>
-              <circle cx="20" cy="20" r="8.5" fill="#FFD75E"/></g>
-              <g class="drift">${CLOUD}</g>`,
-      partlynight:
-             `<g class="mini-moon"><path fill="#EAF2FF" d="M22 5a13.5 13.5 0 1 0 9.7 18.4A11.3 11.3 0 0 1 22 5Z"/></g>
-              <g class="drift">${CLOUD}</g>`,
-      cloud: `<g class="drift"><path fill="#FFFFFF" fill-opacity=".55" d="M50 30a10 10 0 0 0-9.6-7.4A13 13 0 0 0 28 18Z"/>${CLOUD}</g>`,
-      fog:   `<g class="drift" transform="translate(0,-4)">${CLOUD}</g>
-              <g class="foglines" stroke="#DDE7F2" stroke-width="3" stroke-linecap="round">
-                <line class="fl fl1" x1="14" y1="52" x2="46" y2="52"/>
-                <line class="fl fl2" x1="20" y1="57.5" x2="52" y2="57.5"/>
-                <line class="fl fl3" x1="14" y1="63" x2="40" y2="63"/></g>`,
-      drizzle:`<g class="drift">${CLOUD}</g>
-              <g stroke="#7FC8FF" stroke-width="3" stroke-linecap="round">
-                <line class="fall f1" x1="26" y1="51" x2="24.6" y2="56"/>
-                <line class="fall f2" x1="38" y1="51" x2="36.6" y2="56"/></g>`,
-      rain:  `<g class="drift">${CLOUD}</g>
-              <g stroke="#7FC8FF" stroke-width="3.2" stroke-linecap="round">
-                <line class="fall f1" x1="24" y1="51" x2="21.8" y2="59"/>
-                <line class="fall f2" x1="33" y1="51" x2="30.8" y2="59"/>
-                <line class="fall f3" x1="42" y1="51" x2="39.8" y2="59"/></g>`,
-      snow:  `<g class="drift">${CLOUD}</g>
-              <g fill="#FFFFFF">
-                <circle class="flake k1" cx="24" cy="53" r="2.1"/>
-                <circle class="flake k2" cx="33" cy="55" r="1.7"/>
-                <circle class="flake k3" cx="42" cy="53" r="2.1"/></g>`,
-      thunder:`<g class="drift">${CLOUD}</g>
-              <polygon class="bolt" fill="#FFD95E" points="33,42 25,54 31,54 27.5,63 40,49 33.6,49 38,42"/>`
-    };
-    const iconSVG = key => `<svg class="wicon" viewBox="0 0 64 64" aria-hidden="true">${ICONS[key] || ICONS.cloud}</svg>`;
+/* =====================================================================
+   MAP
+===================================================================== */
+if (!window.L) { toast("Map engine failed to load — check connection."); }
+const map = L.map("map", { zoomControl:false, attributionControl:false, worldCopyJump:true, minZoom:2, maxZoom:11, zoomSnap:.5 })
+             .setView([18, 8], 3);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+            { subdomains:"abcd", maxZoom:19, opacity:.94 }).addTo(map);
 
-    /* Small glyph set for chips & stat tiles */
-    const IC = {
-      thermo: '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 13.6V5a2 2 0 1 1 4 0v8.6a4.5 4.5 0 1 1-4 0Z"/></svg>',
-      hilow:  '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14V5M4.5 7.5 7 5l2.5 2.5M17 10v9M14.5 16.5 17 19l2.5-2.5"/></svg>',
-      wind:   '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8.5h10a2.6 2.6 0 1 0-2.5-3.3M3 12.5h15a2.6 2.6 0 1 1-2.5 3.3M3 16.5h7a2.3 2.3 0 1 1-2.2 3"/></svg>',
-      drop:   '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/></svg>',
-      gauge:  '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.6-4.6"/><circle cx="12" cy="16" r="1.3" fill="currentColor" stroke="none"/></svg>',
-      uv:     '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6"/></svg>',
-      cloudS: '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17.5 18h-9a4.5 4.5 0 1 1 1.2-8.9A6 6 0 0 1 21 11.5 3.8 3.8 0 0 1 17.5 18Z"/></svg>',
-      pop:    '<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" stroke-linecap="round"/></svg>',
-      arrow:  '<svg class="wind-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 17.6 17l-5.6-3-5.6 3Z" fill="currentColor"/></svg>'
-    };
+/* zoom pills */
+const zoomUI = document.createElement("div");
+zoomUI.className = "zoomui";
+zoomUI.innerHTML = '<button class="iconbtn well press" id="zin" aria-label="Zoom in">+</button><button class="iconbtn well press" id="zout" aria-label="Zoom out">−</button>';
+document.body.appendChild(zoomUI);
+$("#zin").addEventListener("click", () => map.zoomIn());
+$("#zout").addEventListener("click", () => map.zoomOut());
 
-    /* ---------------- networking ---------------- */
-    async function getJSON(url, ms = 10000) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), ms);
-      try {
-        const res = await fetch(url, { signal: ctrl.signal });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return await res.json();
-      } finally { clearTimeout(timer); }
-    }
+/* =====================================================================
+   ATMOSPHERIC FIELD — 176-point Open-Meteo grid over the viewport
+===================================================================== */
+const COLS=16, ROWS=11;
+let fieldSeq=0, fieldBounds=null;
 
-    /* ---------------- formatting ---------------- */
-    const fmtTemp = c => state.unit === "c" ? Math.round(c) : Math.round(c * 9 / 5 + 32);
-    const degSym  = () => state.unit === "c" ? "°C" : "°F";
-    const fmtWind = k => state.unit === "c" ? Math.round(k) + " km/h" : Math.round(k * 0.621371) + " mph";
-    const fmtClock = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    const fmtHour  = iso => { const h = +iso.slice(11, 13); return (h % 12 || 12) + (h < 12 ? "AM" : "PM"); };
-    const flag     = cc => cc ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : "";
+async function refreshField(){
+  const b = map.getBounds();
+  let west=b.getWest(), east=b.getEast();
+  if (west > east) return;                       // antimeridian: skip
+  const south=b.getSouth(), north=b.getNorth();
+  const lats=[], lngs=[];
+  for (let r=0;r<ROWS;r++) lats.push(north-(north-south)*r/(ROWS-1));
+  for (let c=0;c<COLS;c++) lngs.push(west+(east-west)*c/(COLS-1));
+  const la=[], lo=[];
+  for (const a of lats) for (const o of lngs){ la.push(a.toFixed(2)); lo.push(o.toFixed(2)); }
+  const seq=++fieldSeq;
+  try{
+    const url = API.forecast+"?latitude="+la.join(",")+"&longitude="+lo.join(",")
+      +"&current=pressure_msl,wind_speed_10m,wind_direction_10m,precipitation,weather_code"
+      +"&hourly=precipitation_probability&forecast_days=1&timezone=UTC";
+    const raw = await getJSON(url, 15000);
+    if (seq!==fieldSeq) return;
+    const list = Array.isArray(raw)?raw:[raw];
+    const cells = list.map(d=>{
+      const cur=d.current, rad=cur.wind_direction_10m*Math.PI/180, sp=cur.wind_speed_10m;
+      return { p:cur.pressure_msl, sp, u:-Math.sin(rad)*sp, v:-Math.cos(rad)*sp,
+               pr:cur.precipitation, code:cur.weather_code,
+               pop:d.hourly?.precipitation_probability?.[0] ?? 0 };
+    });
+    state.field = { lats, lngs, cells };
+    fieldBounds = L.latLngBounds([south,west],[north,east]);
+    renderOverlays(); detectSystems();
+  }catch(e){ console.error(e); }
+}
 
-    /* ---------------- loader & toast ---------------- */
-    const showLoader = msg => { els.loaderLabel.textContent = msg || "Reading the sky…"; els.loader.classList.remove("off"); };
-    const hideLoader = () => els.loader.classList.add("off");
+function sample(lat,lng){
+  const f=state.field; if(!f) return null;
+  const {lats,lngs,cells}=f;
+  const dy=(lats[0]-lats[ROWS-1])/(ROWS-1), dx=(lngs[COLS-1]-lngs[0])/(COLS-1);
+  let fy=(lats[0]-lat)/dy, fx=(lng-lngs[0])/dx;
+  if (fy<0||fx<0||fy>ROWS-1||fx>COLS-1) return null;
+  const r0=Math.floor(fy), c0=Math.floor(fx), tr=fy-r0, tc=fx-c0;
+  const r1=Math.min(r0+1,ROWS-1), c1=Math.min(c0+1,COLS-1);
+  const A=cells[r0*COLS+c0], B=cells[r0*COLS+c1], C=cells[r1*COLS+c0], D=cells[r1*COLS+c1];
+  const mix=(a,b,t)=>a+(b-a)*t, M={};
+  for (const k of ["p","sp","u","v","pr","pop"])
+    M[k]=mix(mix(A[k],B[k],tc), mix(C[k],D[k],tc), tr);
+  return M;
+}
 
-    let toastTimer = null;
-    function toast(msg) {
-      els.toastMsg.textContent = msg;
-      els.toast.classList.add("show");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => els.toast.classList.remove("show"), 4600);
-    }
+/* ---------------- color ramps ---------------- */
+function rampColor(stops, v){
+  if (v<=stops[0][0]) return stops[0];
+  for (let i=0;i<stops.length-1;i++){
+    const [v0,r0,g0,b0,a0]=stops[i], [v1,r1,g1,b1,a1]=stops[i+1];
+    if (v<=v1){ const t=(v-v0)/(v1-v0);
+      return [lerp(r0,r1,t),lerp(g0,g1,t),lerp(b0,b1,t),lerp(a0,a1,t)]; }
+  }
+  return stops[stops.length-1];
+}
+/* User palette: white(none)→yellow(light)→orange(heavy)→red(extreme)→dark red(torrential) */
+const RAIN_STOPS=[
+ [0.0, 255,255,255,0], [0.2, 255,224,70,.55], [2, 255,205,40,.78],
+ [10, 255,140,0,.85], [25, 255,45,60,.9], [60, 125,0,10,.95]];
+const CHANCE_STOPS=[
+ [0, 255,255,255,0], [20, 150,220,255,.25], [50, 70,150,255,.6], [100, 130,90,255,.85]];
+const PRESS_COLOR = p => {
+  if (p<1008){ const t=clamp((1008-p)/26,0,1); return [70,140,255,.55*t]; }
+  if (p>1018){ const t=clamp((p-1018)/20,0,1); return [255,170,90,.4*t]; }
+  return [0,0,0,0];
+};
+const windColor = sp =>
+  sp<20 ? "rgba(255,255,255,.55)" : sp<39 ? "rgba(140,225,255,.7)" :
+  sp<62 ? "rgba(255,220,90,.8)" : sp<119 ? "rgba(255,140,60,.85)" : "rgba(255,70,70,.95)";
 
-    /* ============================================================
-       DATA LOAD
-    ============================================================ */
-    async function loadPlace(place) {
-      showLoader(`Tuning into ${place.name}…`);
-      try {
-        const url = `${API.forecast}?latitude=${place.latitude}&longitude=${place.longitude}`
-          + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
-          + `&hourly=temperature_2m,precipitation_probability,weather_code,is_day`
-          + `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,wind_speed_10m_max`
-          + `&timezone=auto&forecast_days=7`;
-        const data = await getJSON(url);
-        state.place = place;
-        state.data  = data;
-        state.tz    = data.timezone;
-        els.body.dataset.theme = themeFor(data.current.weather_code, data.current.is_day === 1);
-        renderAll();
-        startClock();
-        hideLoader();
-      } catch (err) {
-        console.error(err);
-        hideLoader();
-        toast("Couldn't reach the weather service — check your connection and try again.");
-      }
-    }
+/* ---------------- raster overlays (tiny canvas → smooth scaled img) ---------------- */
+const BLANK="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+const ovRain   = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.66, className:"ov ov-rain",   interactive:false}).addTo(map);
+const ovChance = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.55, className:"ov ov-chance", interactive:false}).addTo(map);
+const ovPress  = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.42, className:"ov ov-press",  interactive:false}).addTo(map);
 
-    /* ============================================================
-       RENDERERS
-    ============================================================ */
-    function renderAll() { renderHero(); renderStats(); renderSun(true); renderHourly(); renderDaily(); }
+function fieldCanvas(get){
+  const cv=document.createElement("canvas"); cv.width=COLS; cv.height=ROWS;
+  const ctx=cv.getContext("2d"), f=state.field;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const [cr,cg,cb,ca]=get(f.cells[r*COLS+c]);
+    ctx.fillStyle=`rgba(${cr|0},${cg|0},${cb|0},${ca})`;
+    ctx.fillRect(c,r,1,1);
+  }
+  return cv.toDataURL();
+}
+function renderOverlays(){
+  if (!state.field||!fieldBounds) return;
+  ovRain.setBounds(fieldBounds); ovChance.setBounds(fieldBounds); ovPress.setBounds(fieldBounds);
+  if (state.layers.rain)   ovRain.setUrl(fieldCanvas(c=>rampColor(RAIN_STOPS,c.pr)));
+  if (state.layers.chance) ovChance.setUrl(fieldCanvas(c=>rampColor(CHANCE_STOPS,c.pop)));
+  if (state.layers.pressure) ovPress.setUrl(fieldCanvas(c=>PRESS_COLOR(c.p)));
+}
 
-    function renderHero() {
-      const d = state.data, cur = d.current, place = state.place;
-      const [label] = wmoInfo(cur.weather_code);
+/* =====================================================================
+   WIND FLOW — liquid particle advection
+===================================================================== */
+const wcv=els.windCanvas, wctx=wcv.getContext("2d");
+let parts=[], windOn=true, moving=false, rafId=0;
+function sizeWind(){ wcv.width=innerWidth; wcv.height=innerHeight; }
+sizeWind(); addEventListener("resize", sizeWind);
+function spawn(){ const b=map.getBounds();
+  return { lat:lerp(b.getSouth(),b.getNorth(),Math.random()), lng:lerp(b.getWest(),b.getEast(),Math.random()), age:0 }; }
+function seedParts(){ const n=innerWidth<700?240:620; parts=Array.from({length:n},spawn); wctx.clearRect(0,0,wcv.width,wcv.height); }
+function windFrame(){
+  rafId=requestAnimationFrame(windFrame);
+  if (!state.field||!windOn||moving||document.hidden) return;
+  const z=map.getZoom(), k=0.05*Math.pow(1.55, z-3);
+  wctx.globalCompositeOperation="destination-out"; wctx.fillStyle="rgba(0,0,0,.07)";
+  wctx.fillRect(0,0,wcv.width,wcv.height);
+  wctx.globalCompositeOperation="lighter"; wctx.lineWidth=1.4; wctx.lineCap="round";
+  for (const p of parts){
+    const s=sample(p.lat,p.lng);
+    if (!s||s.sp<1||p.age>140){ Object.assign(p,spawn()); continue; }
+    const a=map.latLngToContainerPoint([p.lat,p.lng]);
+    p.lat+=s.v*0.0022; p.lng+=s.u*0.0022/Math.max(.2,Math.cos(p.lat*Math.PI/180)); p.age++;
+    const b=map.latLngToContainerPoint([p.lat,p.lng]);
+    wctx.strokeStyle=windColor(s.sp);
+    wctx.beginPath(); wctx.moveTo(a.x,a.y); wctx.lineTo(b.x,b.y); wctx.stroke();
+  }
+}
+map.on("movestart", ()=>{ moving=true; wctx.clearRect(0,0,wcv.width,wcv.height); });
+map.on("moveend",   ()=>{ moving=false; seedParts(); queueRefresh(); });
+map.on("zoomend",   ()=>{ seedParts(); });
 
-      els.placeName.textContent = place.name;
-      els.placeMeta.textContent = [place.admin1, place.country].filter(Boolean).join(", ") || "Coordinates " + (+place.latitude).toFixed(2) + ", " + (+place.longitude).toFixed(2);
-      els.heroTemp.innerHTML = `${fmtTemp(cur.temperature_2m)}<span class="deg">°</span>`;
-      els.heroCond.textContent = label;
-      els.heroIcon.innerHTML = iconSVG(iconKey(cur.weather_code, cur.is_day === 1));
-      els.heroPane.setAttribute("aria-label",
-        `${place.name}: ${label}, ${fmtTemp(cur.temperature_2m)} degrees, feels like ${fmtTemp(cur.apparent_temperature)}`);
+let refreshT=null;
+function queueRefresh(){ clearTimeout(refreshT); refreshT=setTimeout(refreshField, 700); }
 
-      const hi = d.daily.temperature_2m_max[0], lo = d.daily.temperature_2m_min[0];
-      els.heroChips.innerHTML = `
-        <span class="chip well">${IC.thermo}Feels like <b>${fmtTemp(cur.apparent_temperature)}${degSym()}</b></span>
-        <span class="chip well">${IC.hilow}H <b>${fmtTemp(hi)}°</b>&nbsp;·&nbsp;L <b>${fmtTemp(lo)}°</b></span>
-        <span class="chip well">${IC.wind}Wind <b>${fmtWind(cur.wind_speed_10m)}</b></span>
-        <span class="chip well">${IC.drop}Humidity <b>${cur.relative_humidity_2m}%</b></span>`;
-    }
+/* =====================================================================
+   PRESSURE SYSTEMS / STORMS / TROPICAL — detected client-side
+===================================================================== */
+const sysGroup=L.layerGroup().addTo(map);
+const devChance=(p,sp,lat)=>Math.round(clamp(0.45*(1010-p)+0.9*Math.max(0,sp-25)+(Math.abs(lat)<=30?10:0),3,96));
+function classify(sp,lat){
+  const trop=Math.abs(lat)<=23.5;
+  if (sp>=119) return trop?"Hurricane / Typhoon":"Hurricane-force low";
+  if (sp>=89)  return trop?"Severe tropical storm":"Severe storm";
+  if (sp>=62)  return trop?"Tropical storm":"Storm";
+  if (sp>=39&&trop) return "Tropical depression";
+  return null;
+}
+function detectSystems(){
+  sysGroup.clearLayers();
+  if (!state.layers.systems && !state.layers.pressure) return;
+  const f=state.field; if(!f) return;
+  const pts=[];
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const cell=f.cells[r*COLS+c], lat=f.lats[r], lng=f.lngs[c];
+    let kind=null;
+    if (cell.sp>=62||cell.p<=996) kind="storm";
+    else if (cell.p<1010) kind="low";
+    else if (cell.p>1024) kind="high";
+    if (kind) pts.push({lat,lng,cell,kind});
+  }
+  const used=new Set(), systems=[];
+  pts.forEach((p,i)=>{
+    if (used.has(i)) return;
+    const cluster=[p]; used.add(i);
+    pts.forEach((q,j)=>{ if(!used.has(j)&&q.kind===p.kind&&Math.abs(q.lat-p.lat)<6&&Math.abs(q.lng-p.lng)<6){ cluster.push(q); used.add(j);} });
+    const n=cluster.length;
+    const agg={ kind:p.kind, n,
+      lat:cluster.reduce((s,q)=>s+q.lat,0)/n, lng:cluster.reduce((s,q)=>s+q.lng,0)/n,
+      p:Math.min(...cluster.map(q=>q.cell.p)), sp:Math.max(...cluster.map(q=>q.cell.sp)),
+      pr:Math.max(...cluster.map(q=>q.cell.pr)) };
+    if (p.kind==="high") agg.p=Math.max(...cluster.map(q=>q.cell.p));
+    systems.push(agg);
+  });
+  systems.slice(0,40).forEach(s=>{
+    const trop=Math.abs(s.lat)<=23.5;
+    const cls=classify(s.sp,s.lat);
+    const showStorm = state.layers.systems && (s.kind==="storm" || (s.kind==="low"&&cls));
+    const showPH = state.layers.pressure;
+    if (!showStorm && !showPH) return;
+    const type = showStorm&&cls ? "storm" : s.kind;
+    const label = type==="storm" ? "S" : type==="low" ? "L" : "H";
+    const html = `<div class="sys ${type}${trop&&type==="storm"?" trop":""}"><i class="ring"></i><span>${label}</span></div>`;
+    const m=L.marker([s.lat,s.lng], { icon:L.divIcon({className:"syswrap", html, iconSize:[46,46], iconAnchor:[23,23]}) });
+    m.on("click", e=>{ L.DomEvent.stop(e||{}); state.suppressClick=true; setTimeout(()=>state.suppressClick=false,350); openSysCard(s,cls,trop); });
+    m.addTo(sysGroup);
+  });
+}
+function openSysCard(s,cls,trop){
+  els.sysTitle.textContent = cls || (s.kind==="low"?"Low pressure area":s.kind==="high"?"High pressure area":"Storm system");
+  els.sysSub.textContent = fmtLat(s.lat,s.lng)+(trop?" · Tropical belt":"");
+  const dev = s.kind==="low"&&!cls ? devChance(s.p,s.sp,s.lat) : null;
+  els.sysBody.innerHTML = `
+    <div class="sys-rows">
+      <span>Pressure</span><b>${Math.round(s.p)} hPa</b>
+      <span>Max wind</span><b>${fmtWind(s.sp)}</b>
+      <span>Rain rate</span><b>${fmtRain(s.pr)}</b>
+      <span>Class</span><b>${cls??"—"}</b>
+    </div>
+    ${dev!=null?`<div class="dev"><div class="dev-top"><span>Storm development chance</span><b>${dev}%</b></div><div class="meter"><i class="mfill" ></i></div><p class="dev-note">Heuristic from pressure deficit, wind &amp; latitude band.</p></div>`:""}
+    <div class="tags">${trop?'<span class="tag">Tropical</span>':'<span class="tag">Mid-latitude</span>'}${s.kind==="storm"?'<span class="tag hot">Active winds ≥ storm force</span>':""}</div>`;
+  if (dev!=null) els.sysBody.querySelector(".mfill").style.setProperty("--pct", dev+"%");
+  els.syscard.classList.add("show");
+}
+els.sysClose.addEventListener("click", ()=>els.syscard.classList.remove("show"));
 
-    function renderStats() {
-      const cur = state.data.current, day = state.data.daily;
-      const dew = cur.temperature_2m - (100 - cur.relative_humidity_2m) / 5;
-      const p = cur.pressure_msl;
-      const pressureNote = p < 1005 ? "Low · unsettled" : p > 1022 ? "High · settled" : "Steady";
-      const uv = day.uv_index_max?.[0] ?? 0;
-      const uvNote = uv <= 2 ? "Low" : uv <= 5 ? "Moderate" : uv <= 7 ? "High" : uv <= 10 ? "Very high" : "Extreme";
-      const cc = cur.cloud_cover;
-      const ccNote = cc < 10 ? "Mostly clear" : cc < 35 ? "Few clouds" : cc < 70 ? "Scattered" : "Overcast";
-      const pop = day.precipitation_probability_max?.[0] ?? 0;
+/* =====================================================================
+   LIVE RADAR (RainViewer) — animated past 2h + nowcast
+===================================================================== */
+let radarLayer=null, radarFrames=[], radarIdx=0, radarTimer=null;
+async function radarOn(){
+  try{
+    const j=await getJSON(API.radar, 9000);
+    radarFrames=[...(j.radar?.past||[]).slice(-6), ...(j.radar?.nowcast||[])];
+    if (!radarFrames.length) throw new Error("no frames");
+    const tpl=f=>j.host+f.path+"/256/{z}/{x}/{y}/4/1_0.png";
+    radarLayer=L.tileLayer(tpl(radarFrames[0]), {opacity:.5, zIndex:450}).addTo(map);
+    radarIdx=0;
+    radarTimer=setInterval(()=>{ radarIdx=(radarIdx+1)%radarFrames.length; radarLayer.setUrl(tpl(radarFrames[radarIdx])); }, 700);
+  }catch(e){ toast("Radar unavailable right now."); state.layers.radar=false; syncToggles(); }
+}
+function radarOff(){ clearInterval(radarTimer); if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; } }
 
-      els.statGrid.innerHTML = `
-        <div class="stat tile lift">
-          <div class="s-head">${IC.drop}<span>Humidity</span></div>
-          <div class="s-val">${cur.relative_humidity_2m}<span class="s-unit">%</span></div>
-          <div class="s-sub">Dew point ${fmtTemp(dew)}°</div>
-        </div>
-        <div class="stat tile lift" id="windTile">
-          <div class="s-head">${IC.wind}<span>Wind</span></div>
-          <div class="s-val">${fmtWind(cur.wind_speed_10m)}${IC.arrow}</div>
-          <div class="s-sub">Gusts ${fmtWind(cur.wind_gusts_10m ?? cur.wind_speed_10m)}</div>
-        </div>
-        <div class="stat tile lift">
-          <div class="s-head">${IC.gauge}<span>Pressure</span></div>
-          <div class="s-val">${Math.round(p)}<span class="s-unit">hPa</span></div>
-          <div class="s-sub">${pressureNote}</div>
-        </div>
-        <div class="stat tile lift">
-          <div class="s-head">${IC.uv}<span>UV index</span></div>
-          <div class="s-val">${Math.round(uv)}</div>
-          <div class="s-sub">${uvNote} · today's max</div>
-        </div>
-        <div class="stat tile lift">
-          <div class="s-head">${IC.cloudS}<span>Cloud cover</span></div>
-          <div class="s-val">${cc}<span class="s-unit">%</span></div>
-          <div class="s-sub">${ccNote}</div>
-        </div>
-        <div class="stat tile lift">
-          <div class="s-head">${IC.pop}<span>Rain chance</span></div>
-          <div class="s-val">${pop}<span class="s-unit">%</span></div>
-          <div class="s-sub">${cur.precipitation > 0 ? cur.precipitation + " mm falling now" : "No rain right now"}</div>
-        </div>`;
+/* =====================================================================
+   LEGEND — every category with rain amount + wind strength
+===================================================================== */
+function renderLegend(){
+  const Ls=state.layers, u=state.unit;
+  const W=(a,b)=>u==="c"?`${a}–${b} km/h`:`${Math.round(a*.621)}–${Math.round(b*.621)} mph`;
+  const R=(a,b)=>u==="c"?`${a}–${b} mm/h`:`${(a*.0394).toFixed(2)}–${(b*.0394).toFixed(2)} in/h`;
+  let h="";
+  if (Ls.rain) h+=`<div class="lg-sec"><h3>Rain intensity</h3>
+    <div class="lg-row"><i class="sw" ></i><span>No rain</span><em>0 · wind ${W(0,19)}</em></div>
+    <div class="lg-row"><i class="sw sw-light"></i><span>Light</span><em>${R(.2,2)} · ${W(20,38)}</em></div>
+    <div class="lg-row"><i class="sw sw-heavy"></i><span>Heavy</span><em>${R(2,10)} · ${W(39,61)}</em></div>
+    <div class="lg-row"><i class="sw sw-extreme"></i><span>Extreme</span><em>${R(10,25)} · ${W(62,118)}</em></div>
+    <div class="lg-row"><i class="sw sw-torrent"></i><span>Torrential</span><em>25+ · ${W(119,200)}</em></div></div>`;
+  if (Ls.chance) h+=`<div class="lg-sec"><h3>Rain chance</h3><div class="lg-bar bar-chance"></div><div class="lg-scale"><span>0%</span><span>50%</span><span>100%</span></div></div>`;
+  if (Ls.wind) h+=`<div class="lg-sec"><h3>Wind flow</h3>
+    <div class="lg-row"><i class="sw sw-w1"></i><span>Calm</span><em>${W(0,19)}</em></div>
+    <div class="lg-row"><i class="sw sw-w2"></i><span>Light</span><em>${W(20,38)}</em></div>
+    <div class="lg-row"><i class="sw sw-w3"></i><span>Strong</span><em>${W(39,61)}</em></div>
+    <div class="lg-row"><i class="sw sw-w4"></i><span>Storm</span><em>${W(62,118)}</em></div>
+    <div class="lg-row"><i class="sw sw-w5"></i><span>Hurricane</span><em>119+</em></div></div>`;
+  if (Ls.pressure) h+=`<div class="lg-sec"><h3>Pressure</h3>
+    <div class="lg-row"><i class="sw sw-low">L</i><span>Low / trough</span><em>&lt; 1010 hPa</em></div>
+    <div class="lg-row"><i class="sw sw-high">H</i><span>High / ridge</span><em>&gt; 1024 hPa</em></div></div>`;
+  if (Ls.systems) h+=`<div class="lg-sec"><h3>Systems</h3>
+    <div class="lg-row"><i class="sw sw-storm">S</i><span>Storm / depression</span><em>wind ≥ 62 or p ≤ 996</em></div>
+    <div class="lg-row"><i class="sw sw-trop">T</i><span>Tropical system</span><em>within 23.5° of equator</em></div></div>`;
+  if (Ls.radar) h+=`<div class="lg-sec"><h3>Live radar</h3><p class="lg-note">Composite reflectivity · past 2 h + 30 min nowcast.</p></div>`;
+  els.legendBody.innerHTML=h||'<p class="lg-note">All layers off.</p>';
+}
+els.legendBtn.addEventListener("click", ()=>els.legend.classList.toggle("min"));
 
-      /* Point the arrow where the wind blows TO (code reports FROM). */
-      const windTile = $("#windTile");
-      if (windTile) windTile.style.setProperty("--winddir", ((cur.wind_direction_10m + 180) % 360) + "deg");
-    }
+/* ---------------- layer toggles ---------------- */
+function syncToggles(){ $$(".layers input").forEach(i=>{ i.checked=state.layers[i.dataset.layer]; }); }
+$$(".layers input").forEach(inp=>{
+  inp.addEventListener("change", ()=>{
+    const k=inp.dataset.layer; state.layers[k]=inp.checked;
+    if (k==="rain")   { inp.checked?renderOverlays():ovRain.setUrl(BLANK); }
+    if (k==="chance") { inp.checked?renderOverlays():ovChance.setUrl(BLANK); }
+    if (k==="pressure"){ inp.checked?renderOverlays():ovPress.setUrl(BLANK); detectSystems(); }
+    if (k==="wind")   { windOn=inp.checked; wcv.classList.toggle("off",!windOn); if(windOn)seedParts(); }
+    if (k==="systems") detectSystems();
+    if (k==="radar")  inp.checked?radarOn():radarOff();
+    if (!state.field) refreshField();
+    renderLegend();
+  });
+});
 
-    /* ---- sun path: quadratic Bézier P0(14,104) C(130,-6) P2(246,104) ---- */
-    const ARC_LEN = els.arcFill.getTotalLength();
-    els.arcFill.setAttribute("stroke-dasharray", ARC_LEN);
+/* ---------------- map click → ripple + dashboard location ---------------- */
+map.on("click", e=>{
+  if (state.suppressClick) return;
+  const rip=document.createElement("i"); rip.className="ripple";
+  rip.style.setProperty("--x", e.containerPoint.x+"px"); rip.style.setProperty("--y", e.containerPoint.y+"px");
+  document.body.appendChild(rip); rip.addEventListener("animationend", ()=>rip.remove());
+  pickCoords(e.latlng.lat, e.latlng.lng);
+});
 
-    function renderSun(resetDash) {
-      const day = state.data.daily;
-      const rise = new Date(day.sunrise[0]);
-      const set  = new Date(day.sunset[0]);
-      els.sunrise.textContent = fmtClock(day.sunrise[0]);
-      els.sunset.textContent  = fmtClock(day.sunset[0]);
-      const mins = Math.max(0, Math.round((set - rise) / 60000));
-      els.dayLen.textContent = `${Math.floor(mins / 60)} h ${mins % 60} m of light`;
-      if (resetDash) els.arcFill.setAttribute("stroke-dasharray", ARC_LEN);
-      positionSun(rise, set);
-    }
+/* =====================================================================
+   DASHBOARD (right pane / internal full page)
+===================================================================== */
+async function loadPlace(place){
+  showLoader(`Tuning into ${place.name}…`);
+  try{
+    const url=`${API.forecast}?latitude=${place.latitude}&longitude=${place.longitude}`
+     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
+     +`&hourly=temperature_2m,precipitation_probability,weather_code,is_day`
+     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
+     +`&timezone=auto&forecast_days=7`;
+    const d=await getJSON(url);
+    state.place=place; state.data=d; state.tz=d.timezone;
+    document.body.dataset.theme=themeFor(d.current.weather_code, d.current.is_day===1);
+    renderDash(); startClock(); hideLoader();
+  }catch(err){ console.error(err); hideLoader(); toast("Couldn't reach the weather service."); }
+}
+function renderDash(){
+  const d=state.data, cur=d.current;
+  els.placeName.textContent=state.place.name;
+  els.placeMeta.textContent=[state.place.admin1,state.place.country].filter(Boolean).join(", ")||fmtLat(+state.place.latitude,+state.place.longitude);
+  els.heroTemp.innerHTML=`${fmtTemp(cur.temperature_2m)}<span class="deg">°</span>`;
+  els.heroCond.textContent=wmoInfo(cur.weather_code)[0];
+  els.heroIcon.innerHTML=iconSVG(iconKey(cur.weather_code,cur.is_day===1));
+  els.heroChips.innerHTML=`
+    <span class="chip well">${IC.thermo}Feels <b>${fmtTemp(cur.apparent_temperature)}${degSym()}</b></span>
+    <span class="chip well">${IC.hilow}H <b>${fmtTemp(d.daily.temperature_2m_max[0])}°</b> L <b>${fmtTemp(d.daily.temperature_2m_min[0])}°</b></span>
+    <span class="chip well">${IC.wind}<b>${fmtWind(cur.wind_speed_10m)}</b></span>
+    <span class="chip well">${IC.drop}<b>${cur.relative_humidity_2m}%</b></span>`;
+  const dew=cur.temperature_2m-(100-cur.relative_humidity_2m)/5, p=cur.pressure_msl;
+  const uv=d.daily.uv_index_max?.[0]??0, pop=d.daily.precipitation_probability_max?.[0]??0;
+  els.statGrid.innerHTML=`
+    <div class="stat tile lift"><div class="s-head">${IC.drop}<span>Humidity</span></div><div class="s-val">${cur.relative_humidity_2m}<span class="s-unit">%</span></div><div class="s-sub">Dew ${fmtTemp(dew)}°</div></div>
+    <div class="stat tile lift" id="windTile"><div class="s-head">${IC.wind}<span>Wind</span></div><div class="s-val">${fmtWind(cur.wind_speed_10m)}${IC.arrow}</div><div class="s-sub">Gusts ${fmtWind(cur.wind_gusts_10m??cur.wind_speed_10m)}</div></div>
+    <div class="stat tile lift"><div class="s-head">${IC.gauge}<span>Pressure</span></div><div class="s-val">${Math.round(p)}</div><div class="s-sub">${p<1005?"Low":p>1022?"High":"Steady"}</div></div>
+    <div class="stat tile lift"><div class="s-head">${IC.uv}<span>UV max</span></div><div class="s-val">${Math.round(uv)}</div><div class="s-sub">${uv<=2?"Low":uv<=5?"Moderate":uv<=7?"High":"Extreme"}</div></div>
+    <div class="stat tile lift"><div class="s-head">${IC.cloudS}<span>Clouds</span></div><div class="s-val">${cur.cloud_cover}<span class="s-unit">%</span></div><div class="s-sub">Sky cover</div></div>
+    <div class="stat tile lift"><div class="s-head">${IC.pop}<span>Rain</span></div><div class="s-val">${pop}<span class="s-unit">%</span></div><div class="s-sub">Chance today</div></div>`;
+  const wt=$("#windTile"); if(wt) wt.style.setProperty("--winddir",((cur.wind_direction_10m+180)%360)+"deg");
+  renderSun(); renderHourly(); renderDaily();
+}
+const ARC_LEN=els.arcFill.getTotalLength(); els.arcFill.setAttribute("stroke-dasharray",ARC_LEN);
+function renderSun(){
+  const day=state.data.daily, rise=new Date(day.sunrise[0]), set=new Date(day.sunset[0]);
+  els.sunrise.textContent=fmtClock(day.sunrise[0]); els.sunset.textContent=fmtClock(day.sunset[0]);
+  const m=Math.max(0,Math.round((set-rise)/60000)); els.dayLen.textContent=`${Math.floor(m/60)}h ${m%60}m light`;
+  positionSun(rise,set);
+}
+function positionSun(rise,set){
+  let now; try{ now=new Date(new Date().toLocaleString("en-US",{timeZone:state.tz})); }catch{ now=new Date(); }
+  const t=clamp((now-rise)/(set-rise),0,1);
+  const x=(1-t)**2*14+2*(1-t)*t*130+t**2*246, y=(1-t)**2*104+2*(1-t)*t*-6+t**2*104;
+  [els.sunDot,els.sunHalo].forEach(c=>{ c.setAttribute("cx",x.toFixed(1)); c.setAttribute("cy",y.toFixed(1)); });
+  els.arcFill.setAttribute("stroke-dashoffset",(ARC_LEN*(1-t)).toFixed(1));
+  els.sunSvg.classList.toggle("dusk", now<rise||now>set);
+}
+function renderHourly(){
+  const d=state.data,h=d.hourly, hourNow=d.current.time.slice(0,13);
+  let i=h.time.findIndex(t=>t.slice(0,13)===hourNow); if(i<0)i=0;
+  els.hourStrip.innerHTML=Array.from({length:24},(_,n)=>{
+    const x=i+n; if(x>=h.time.length)return"";
+    const pop=h.precipitation_probability?.[x]??0;
+    return `<div class="hour tile lift${n===0?" now":""}"><span class="h-time">${n===0?"Now":fmtHour(h.time[x])}</span>${iconSVG(iconKey(h.weather_code[x],h.is_day[x]===1))}<span class="h-temp">${fmtTemp(h.temperature_2m[x])}°</span><span class="h-pop${pop>=5?"":" ghost"}">${pop>=5?pop+"%":"·"}</span></div>`;
+  }).join("");
+}
+function renderDaily(){
+  const day=state.data.daily, wMin=Math.min(...day.temperature_2m_min), wMax=Math.max(...day.temperature_2m_max), span=Math.max(1,wMax-wMin);
+  els.dayList.innerHTML=day.time.map((iso,i)=>{
+    const name=i===0?"Today":new Date(iso+"T12:00").toLocaleDateString([],{weekday:"short"});
+    const lo=((day.temperature_2m_min[i]-wMin)/span)*100, hi=((day.temperature_2m_max[i]-wMin)/span)*100;
+    const pop=day.precipitation_probability_max?.[i]??0;
+    return `<div class="day-row lift"><span class="d-name">${name}</span><span class="d-ic">${iconSVG(iconKey(day.weather_code[i]))}</span><span class="d-pop${pop>=5?"":" hide"}">${pop}%</span><span class="range-val min">${fmtTemp(day.temperature_2m_min[i])}°</span><div class="range" style="--lo:${lo}%;--hi:${hi}%"><div class="range-fill"></div></div><span class="range-val max">${fmtTemp(day.temperature_2m_max[i])}°</span></div>`;
+  }).join("");
+}
+function startClock(){
+  clearInterval(state.clockTimer);
+  const tick=()=>{ try{ els.clockText.textContent=new Intl.DateTimeFormat("en-GB",{timeZone:state.tz,weekday:"short",hour:"2-digit",minute:"2-digit"}).format(new Date()); }catch{ els.clockText.textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); }
+    if(state.data) positionSun(new Date(state.data.daily.sunrise[0]), new Date(state.data.daily.sunset[0])); };
+  tick(); state.clockTimer=setInterval(tick,1000);
+}
+els.hourPrev.addEventListener("click",()=>els.hourStrip.scrollBy({left:-300,behavior:"smooth"}));
+els.hourNext.addEventListener("click",()=>els.hourStrip.scrollBy({left:300,behavior:"smooth"}));
 
-    function positionSun(rise, set) {
-      let now;
-      try { now = new Date(new Date().toLocaleString("en-US", { timeZone: state.tz })); }
-      catch { now = new Date(); }
-      const t = clamp((now - rise) / (set - rise), 0, 1);
-      const x = (1 - t) ** 2 * 14 + 2 * (1 - t) * t * 130 + t ** 2 * 246;
-      const y = (1 - t) ** 2 * 104 + 2 * (1 - t) * t * -6 + t ** 2 * 104;
-      for (const c of [els.sunDot, els.sunHalo]) { c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); }
-      els.arcFill.setAttribute("stroke-dashoffset", (ARC_LEN * (1 - t)).toFixed(1));
-      els.sunSvg.classList.toggle("dusk", now < rise || now > set);
-    }
+/* dashboard open / expand-to-page */
+els.dashBtn.addEventListener("click", ()=>els.dash.classList.toggle("open"));
+els.dashExpand.addEventListener("click", ()=>{
+  els.dash.classList.toggle("full");
+  document.body.classList.toggle("page-dash", els.dash.classList.contains("full"));
+});
 
-    function renderHourly() {
-      const d = state.data, h = d.hourly;
-      const hourNow = d.current.time.slice(0, 13);
-      let i = h.time.findIndex(t => t.slice(0, 13) === hourNow);
-      if (i < 0) i = Math.max(0, h.time.findIndex(t => t >= d.current.time));
-
-      const frag = [];
-      for (let n = 0; n < 24; n++) {
-        const idx = i + n;
-        if (idx >= h.time.length) break;
-        const pop = h.precipitation_probability?.[idx] ?? 0;
-        frag.push(`
-          <div class="hour tile lift${n === 0 ? " now" : ""}">
-            <span class="h-time">${n === 0 ? "Now" : fmtHour(h.time[idx])}</span>
-            ${iconSVG(iconKey(h.weather_code[idx], h.is_day[idx] === 1))}
-            <span class="h-temp">${fmtTemp(h.temperature_2m[idx])}°</span>
-            <span class="h-pop${pop >= 5 ? "" : " ghost"}">${pop >= 5 ? pop + "%" : "·"}</span>
-          </div>`);
-      }
-      els.hourStrip.innerHTML = frag.join("");
-      els.hourStrip.scrollTo({ left: 0 });
-    }
-
-    function renderDaily() {
-      const d = state.data, day = d.daily;
-      const weekMin = Math.min(...day.temperature_2m_min);
-      const weekMax = Math.max(...day.temperature_2m_max);
-      const span = Math.max(1, weekMax - weekMin);
-      const todayName = new Date().toLocaleDateString([], { weekday: "long" });
-
-      const frag = day.time.map((iso, i) => {
-        const name = i === 0 ? (todayName.length <= 7 ? todayName : "Today")
-                             : new Date(iso + "T12:00").toLocaleDateString([], { weekday: "short" });
-        const lo = ((day.temperature_2m_min[i] - weekMin) / span) * 100;
-        const hi = ((day.temperature_2m_max[i] - weekMin) / span) * 100;
-        const pop = day.precipitation_probability_max?.[i] ?? 0;
-        const nowMark = i === 0
-          ? `style="--lo:${lo}%;--hi:${hi}%;--now:${clamp(((d.current.temperature_2m - weekMin) / span) * 100, 0, 100)}%"`
-          : `style="--lo:${lo}%;--hi:${hi}%"`;
-        return `
-          <div class="day-row lift">
-            <span class="d-name">${name}</span>
-            <span class="d-ic">${iconSVG(iconKey(day.weather_code[i], true))}</span>
-            <span class="d-pop${pop >= 5 ? "" : " hide"}">${pop}%</span>
-            <span class="range-val min">${fmtTemp(day.temperature_2m_min[i])}°</span>
-            <div class="range" ${nowMark}><div class="range-fill"></div>${i === 0 ? '<i class="range-now"></i>' : ""}</div>
-            <span class="range-val max">${fmtTemp(day.temperature_2m_max[i])}°</span>
-          </div>`;
-      });
-      els.dayList.innerHTML = frag.join("");
-    }
-
-    /* ---------------- live clock + sun tracking ---------------- */
-    function startClock() {
-      clearInterval(state.clockTimer);
-      const tick = () => {
-        try {
-          els.clockText.textContent = new Intl.DateTimeFormat("en-GB", {
-            timeZone: state.tz, weekday: "short", hour: "2-digit", minute: "2-digit"
-          }).format(new Date());
-        } catch { els.clockText.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-        if (state.data) positionSun(new Date(state.data.daily.sunrise[0]), new Date(state.data.daily.sunset[0]));
-      };
-      tick();
-      state.clockTimer = setInterval(tick, 1000);
-    }
-
-    /* ============================================================
-       SEARCH (geocoding + suggestions)
-    ============================================================ */
-    let searchSeq = 0, activeIdx = -1, lastResults = [], debTimer = null;
-
-    function closeSuggest() { els.suggest.classList.remove("open"); activeIdx = -1; }
-
-    function renderSuggestions(list) {
-      lastResults = list; activeIdx = -1;
-      els.suggest.innerHTML = list.map((p, i) => `
-        <button type="button" class="sug" role="option" data-i="${i}" id="sug-${i}">
-          <span class="flag">${flag(p.country_code)}</span>
-          <span class="sug-txt"><b>${p.name}</b><i>${[p.admin1, p.country].filter(Boolean).join(", ")}</i></span>
-        </button>`).join("");
+/* =====================================================================
+   SEARCH / UNITS / LOCATE
+===================================================================== */
+let searchSeq=0, activeIdx=-1, lastResults=[], debTimer=null;
+const closeSuggest=()=>{ els.suggest.classList.remove("open"); activeIdx=-1; };
+els.searchInput.addEventListener("input", ()=>{
+  const q=els.searchInput.value.trim(); els.clearBtn.hidden=!q; clearTimeout(debTimer);
+  if(q.length<2){ closeSuggest(); return; }
+  debTimer=setTimeout(async ()=>{
+    const seq=++searchSeq;
+    try{ const r=await getJSON(`${API.geocode}?name=${encodeURIComponent(q)}&count=6&language=en&format=json`,8000);
+      if(seq!==searchSeq)return; lastResults=r.results||[];
+      if(!lastResults.length){ closeSuggest(); return; }
+      activeIdx=-1;
+      els.suggest.innerHTML=lastResults.map((p,i)=>`<button type="button" class="sug" role="option" data-i="${i}"><span class="flag">${flag(p.country_code)}</span><span class="sug-txt"><b>${p.name}</b><i>${[p.admin1,p.country].filter(Boolean).join(", ")}</i></span></button>`).join("");
       els.suggest.classList.add("open");
-    }
+    }catch{ closeSuggest(); }
+  },350);
+});
+els.searchInput.addEventListener("keydown", e=>{
+  const open=els.suggest.classList.contains("open");
+  if(e.key==="Escape")closeSuggest();
+  if(!open)return;
+  if(e.key==="ArrowDown"){e.preventDefault();activeIdx=Math.min(activeIdx+1,lastResults.length-1);paint();}
+  if(e.key==="ArrowUp"){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);paint();}
+  function paint(){ $$(".sug",els.suggest).forEach((b,i)=>b.classList.toggle("active",i===activeIdx)); }
+});
+els.searchForm.addEventListener("submit", e=>{ e.preventDefault(); if(lastResults.length) pickPlace(lastResults[activeIdx>=0?activeIdx:0]); });
+els.suggest.addEventListener("click", e=>{ const b=e.target.closest(".sug"); if(b) pickPlace(lastResults[+b.dataset.i]); });
+els.clearBtn.addEventListener("click", ()=>{ els.searchInput.value=""; els.clearBtn.hidden=true; closeSuggest(); els.searchInput.focus(); });
+document.addEventListener("click", e=>{ if(!els.searchForm.contains(e.target)) closeSuggest(); }, {passive:true});
 
-    async function runSearch(q) {
-      const seq = ++searchSeq;
-      try {
-        const res = await getJSON(`${API.geocode}?name=${encodeURIComponent(q)}&count=6&language=en&format=json`, 8000);
-        if (seq !== searchSeq) return;
-        const list = res.results || [];
-        list.length ? renderSuggestions(list) : closeSuggest();
-      } catch { if (seq === searchSeq) closeSuggest(); }
-    }
+function pickPlace(p){
+  if(!p)return; closeSuggest(); els.searchInput.value=p.name; els.searchInput.blur();
+  map.flyTo([p.latitude,p.longitude], 8, {duration:1.6});
+  loadPlace({name:p.name, latitude:p.latitude, longitude:p.longitude, admin1:p.admin1, country:p.country});
+}
+async function pickCoords(lat,lon){
+  let name="Pinned location", admin1, country, cc;
+  try{ const r=await getJSON(`${API.reverse}?latitude=${lat}&longitude=${lon}&localityLanguage=en`,6000);
+    name=r.city||r.locality||name; admin1=r.principalSubdivision; country=r.countryName; cc=r.countryCode;
+  }catch{}
+  loadPlace({name, latitude:lat.toFixed(3), longitude:lon.toFixed(3), admin1, country, country_code:cc});
+}
+els.units.addEventListener("click", e=>{
+  const b=e.target.closest("button[data-u]"); if(!b||state.unit===b.dataset.u)return;
+  state.unit=b.dataset.u; els.units.dataset.unit=state.unit;
+  $$("button[data-u]",els.units).forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.u===state.unit)));
+  if(state.data)renderDash(); renderLegend();
+});
+const CUPERTINO={name:"Cupertino",latitude:37.323,longitude:-122.0322,admin1:"California",country:"United States"};
+els.locateBtn.addEventListener("click", ()=>{
+  if(!navigator.geolocation){ toast("Geolocation unsupported."); return; }
+  els.locateBtn.classList.add("busy");
+  navigator.geolocation.getCurrentPosition(
+    p=>{ els.locateBtn.classList.remove("busy"); map.flyTo([p.coords.latitude,p.coords.longitude],8,{duration:1.6}); pickCoords(p.coords.latitude,p.coords.longitude); },
+    ()=>{ els.locateBtn.classList.remove("busy"); toast("Location unavailable."); },
+    {timeout:9000, maximumAge:600000});
+});
 
-    els.searchInput.addEventListener("input", () => {
-      const q = els.searchInput.value.trim();
-      els.clearBtn.hidden = q.length === 0;
-      clearTimeout(debTimer);
-      if (q.length < 2) { closeSuggest(); return; }
-      debTimer = setTimeout(() => runSearch(q), 350);
-    });
-
-    els.searchInput.addEventListener("keydown", e => {
-      const open = els.suggest.classList.contains("open");
-      if (e.key === "ArrowDown" && open) { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, lastResults.length - 1); paintActive(); }
-      else if (e.key === "ArrowUp" && open) { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); paintActive(); }
-      else if (e.key === "Escape") closeSuggest();
-    });
-    const paintActive = () => $$(".sug", els.suggest).forEach((b, i) => b.classList.toggle("active", i === activeIdx));
-
-    els.searchForm.addEventListener("submit", e => {
-      e.preventDefault();
-      if (!lastResults.length) return;
-      pickPlace(lastResults[activeIdx >= 0 ? activeIdx : 0]);
-    });
-
-    els.suggest.addEventListener("click", e => {
-      const btn = e.target.closest(".sug");
-      if (btn) pickPlace(lastResults[+btn.dataset.i]);
-    });
-
-    els.clearBtn.addEventListener("click", () => {
-      els.searchInput.value = ""; els.clearBtn.hidden = true;
-      closeSuggest(); els.searchInput.focus();
-    });
-
-    document.addEventListener("click", e => {
-      if (!els.searchForm.contains(e.target)) closeSuggest();
-    }, { passive: true });
-
-    function pickPlace(p) {
-      if (!p) return;
-      closeSuggest();
-      els.searchInput.value = p.name;
-      els.searchInput.blur();
-      loadPlace({ name: p.name, latitude: p.latitude, longitude: p.longitude,
-                  admin1: p.admin1, country: p.country, country_code: p.country_code });
-    }
-
-    /* ============================================================
-       UNITS (instant client-side conversion, no refetch)
-    ============================================================ */
-    els.units.addEventListener("click", e => {
-      const btn = e.target.closest("button[data-u]");
-      if (!btn || state.unit === btn.dataset.u) return;
-      state.unit = btn.dataset.u;
-      els.units.dataset.unit = state.unit;
-      $$("button[data-u]", els.units).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.u === state.unit)));
-      if (state.data) renderAll();
-    });
-
-    /* ============================================================
-       GEOLOCATION + REVERSE GEOCODE
-    ============================================================ */
-    const CUPERTINO = { name: "Cupertino", latitude: 37.3230, longitude: -122.0322,
-                        admin1: "California", country: "United States", country_code: "US" };
-
-    async function placeFromCoords(lat, lon, silentFail = false) {
-      try {
-        const r = await getJSON(`${API.reverse}?latitude=${lat}&longitude=${lon}&localityLanguage=en`, 6000);
-        return { name: r.city || r.locality || "My location", latitude: lat, longitude: lon,
-                 admin1: r.principalSubdivision, country: r.countryName, country_code: r.countryCode };
-      } catch {
-        if (!silentFail) toast("Reverse lookup failed — using coordinates.");
-        return { name: "My location", latitude: lat, longitude: lon };
-      }
-    }
-
-    function locate(opts, onFail) {
-      if (!navigator.geolocation) { onFail(); return; }
-      navigator.geolocation.getCurrentPosition(
-        async pos => loadPlace(await placeFromCoords(pos.coords.latitude, pos.coords.longitude)),
-        onFail, opts
-      );
-    }
-
-    els.locateBtn.addEventListener("click", () => {
-      els.locateBtn.classList.add("busy");
-      locate({ timeout: 9000, maximumAge: 600000 }, () => {
-        toast("Location unavailable — search for a city instead.");
-      });
-      setTimeout(() => els.locateBtn.classList.remove("busy"), 2500);
-    });
-
-    /* ============================================================
-       HOURLY RAIL: buttons + drag / touch scrubbing
-    ============================================================ */
-    els.hourPrev.addEventListener("click", () => els.hourStrip.scrollBy({ left: -344, behavior: "smooth" }));
-    els.hourNext.addEventListener("click", () => els.hourStrip.scrollBy({ left:  344, behavior: "smooth" }));
-
-    let dragging = false, dragX = 0, dragL = 0;
-    els.hourStrip.addEventListener("pointerdown", e => {
-      dragging = true; dragX = e.clientX; dragL = els.hourStrip.scrollLeft;
-      els.hourStrip.classList.add("grabbing");
-    }, { passive: true });
-    window.addEventListener("pointermove", e => {
-      if (dragging) els.hourStrip.scrollLeft = dragL - (e.clientX - dragX);
-    }, { passive: true });
-    window.addEventListener("pointerup", () => {
-      dragging = false; els.hourStrip.classList.remove("grabbing");
-    }, { passive: true });
-
-    /* ============================================================
-       BOOT
-    ============================================================ */
-    showLoader("Finding your sky…");
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async pos => loadPlace(await placeFromCoords(pos.coords.latitude, pos.coords.longitude, true)),
-        () => loadPlace(CUPERTINO),
-        { timeout: 3500, maximumAge: 600000 }
-      );
-    } else {
-      loadPlace(CUPERTINO);
-    }
-  })();
-  </script>
+/* =====================================================================
+   BOOT
+===================================================================== */
+renderLegend();
+if (matchMedia("(min-width:1180px)").matches) els.dash.classList.add("open");
+seedParts(); windFrame();
+refreshField();
+showLoader("Finding your sky…");
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    p=>pickCoords(p.coords.latitude,p.coords.longitude),
+    ()=>{ map.flyTo([CUPERTINO.latitude,CUPERTINO.longitude],6,{duration:1.4}); loadPlace(CUPERTINO); },
+    {timeout:3500, maximumAge:600000});
+} else { loadPlace(CUPERTINO); }
+})();
+</script>
 </body>
 </html>
