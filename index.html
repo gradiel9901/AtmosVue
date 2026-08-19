@@ -1,672 +1,630 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="AtmosVue — a Liquid Glass living weather map: rain intensity, rain chance, wind flow, pressure systems, LPA & storm tracking.">
-<title>AtmosVue — Liquid Glass Storm Map</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%2357a9ff'/%3E%3Ccircle cx='24' cy='24' r='9' fill='white' opacity='.55'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1216">
+<meta name="description" content="AtmosVue — a liquid-glass storm tracking board for the Philippines and the Western Pacific: live rain radar, wind fields, tropical storms and LPAs.">
+<title>AtmosVue — Philippines &amp; Western Pacific Storm Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='5' fill='%2345d6e6'/%3E%3Cpath d='M16 4a12 12 0 0 1 12 12' stroke='%2345d6e6' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M16 28A12 12 0 0 1 4 16' stroke='%2345d6e6' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="styles.css">
 </head>
-<body data-theme="clear-night">
+<body>
 
-<div id="map" aria-label="Weather map"></div>
-<canvas id="windCanvas" aria-hidden="true"></canvas>
+<!-- Full-bleed map -->
+<div id="map" aria-label="Storm tracking map of the Philippines and the Western Pacific"></div>
 
-<header class="topbar glass pane-top anim d0">
-  <div class="brand"><span class="brand-orb" aria-hidden="true"></span><span class="brand-name">Atmos<em>Vue</em></span></div>
-  <form class="search well" id="searchForm" role="search">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-    <input id="searchInput" type="text" placeholder="Search any city…" autocomplete="off" spellcheck="false" aria-label="Search for a city">
-    <button type="button" class="clear-btn press" id="clearBtn" hidden aria-label="Clear search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
-    <div class="suggest glass pane-top" id="suggest" role="listbox"></div>
-  </form>
-  <div class="units well" id="units" data-unit="c" role="group" aria-label="Temperature unit">
-    <span class="thumb" aria-hidden="true"></span>
-    <button type="button" data-u="c" class="press" aria-pressed="true">°C</button>
-    <button type="button" data-u="f" class="press" aria-pressed="false">°F</button>
+<!-- Top bar — the one “clear glass” hero surface (§3) -->
+<header class="topbar glass-clear">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="4.4" fill="currentColor"/><path d="M16 3.5 A12.5 12.5 0 0 1 28.5 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M16 28.5 A12.5 12.5 0 0 1 3.5 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+    </span>
+    <div class="brand-text">
+      <h1>AtmosVue</h1>
+      <p>Philippines · Western Pacific storm board</p>
+    </div>
   </div>
-  <button type="button" class="iconbtn well press" id="locateBtn" aria-label="Use my current location" title="Use my location">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/></svg>
-  </button>
-  <button type="button" class="iconbtn well press" id="dashBtn" aria-label="Toggle dashboard" title="Dashboard">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="16" rx="3.5"/><line x1="14.5" y1="4" x2="14.5" y2="20"/></svg>
-  </button>
+  <div class="top-actions">
+    <span class="chip status num" id="statusChip" role="status">Connecting…</span>
+    <button class="chip btn" id="refreshBtn" type="button">Refresh</button>
+    <button class="chip btn" id="aboutBtn" type="button">About</button>
+  </div>
 </header>
 
-<aside class="layers glass pane-top anim d1" aria-label="Map layers">
-  <span class="eyebrow">Filters</span>
-  <label class="lrow"><span class="lname">Rain intensity</span><span class="switch"><input type="checkbox" data-layer="rain" checked><i></i></span></label>
-  <label class="lrow"><span class="lname">Rain chance</span><span class="switch"><input type="checkbox" data-layer="chance" checked><i></i></span></label>
-  <label class="lrow"><span class="lname">Wind flow</span><span class="switch"><input type="checkbox" data-layer="wind" checked><i></i></span></label>
-  <label class="lrow"><span class="lname">Pressure systems</span><span class="switch"><input type="checkbox" data-layer="pressure"><i></i></span></label>
-  <label class="lrow"><span class="lname">Storms &amp; tropical</span><span class="switch"><input type="checkbox" data-layer="systems" checked><i></i></span></label>
-  <label class="lrow"><span class="lname">Live radar</span><span class="switch"><input type="checkbox" data-layer="radar"><i></i></span></label>
+<!-- Permanent safety notice (§9) -->
+<p class="notice chip-solid" id="notice">
+  Awareness tool, <strong>not</strong> an official warning system — for anything safety-critical, follow
+  <a href="https://www.pagasa.dost.gov.ph" target="_blank" rel="noopener">PAGASA</a>.
+</p>
+
+<!-- Left panel: active systems list -->
+<aside class="panel panel-left glass" id="listPanel" aria-label="Active systems">
+  <button class="panel-head" id="listHead" type="button" aria-expanded="true">
+    <span class="grab" aria-hidden="true"></span>
+    <span class="panel-title">Active systems</span>
+    <span class="chip count num" id="sysCount">0</span>
+  </button>
+  <div class="panel-body" id="systemList"></div>
 </aside>
 
-<section class="legend glass pane-top anim d2" id="legend" aria-label="Layer legend">
-  <header class="legend-head">
-    <span class="eyebrow">Legend</span>
-    <button type="button" class="iconbtn well press legend-btn" id="legendBtn" aria-label="Collapse legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9.5 12 15l6-5.5"/></svg></button>
-  </header>
-  <div class="legend-body" id="legendBody"></div>
-</section>
+<!-- Right panel: signature detail card (§3.2) -->
+<aside class="panel panel-right glass glass-signature" id="detailPanel" aria-label="Selected system details" hidden></aside>
 
-<section class="syscard glass pane-top" id="syscard" aria-live="polite">
-  <header class="sys-head">
-    <div><h2 id="sysTitle">—</h2><p class="sub" id="sysSub">—</p></div>
-    <button type="button" class="iconbtn well press" id="sysClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
-  </header>
-  <div id="sysBody"></div>
-</section>
-
-<section class="dash glass pane-top anim d3" id="dash" aria-label="Location dashboard">
-  <header class="dash-head">
-    <div class="place"><h1 id="placeName">—</h1><p class="sub" id="placeMeta">Locating…</p></div>
-    <div class="dash-tools">
-      <span class="clock well"><span class="live-dot" aria-hidden="true"></span><span id="clockText">--:--</span></span>
-      <button type="button" class="iconbtn well press" id="dashExpand" aria-label="Expand dashboard to full page" title="Expand">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
-      </button>
+<!-- One glass control cluster: toggles + intensity legend (§5.6) -->
+<section class="panel-controls glass" id="controlsPanel" aria-label="Map layers and legend">
+  <h2>Layers</h2>
+  <div class="toggles">
+    <div class="toggle-row" data-layer="rain">
+      <label class="toggle"><input type="checkbox" id="tgRain" checked><span class="switch" aria-hidden="true"></span><span class="tg-label">Rain intensity</span></label>
+      <p class="layer-note" hidden></p>
     </div>
-  </header>
-  <div class="dash-scroll">
-    <div class="hero-main">
-      <div class="temp-block">
-        <div class="temp" id="heroTemp">--<span class="deg">°</span></div>
-        <p class="cond-label" id="heroCond">Reading the sky…</p>
-      </div>
-      <div class="hero-icon" id="heroIcon" aria-hidden="true"></div>
+    <div class="toggle-row" data-layer="wind">
+      <label class="toggle"><input type="checkbox" id="tgWind" checked><span class="switch" aria-hidden="true"></span><span class="tg-label">Show wind</span></label>
+      <p class="layer-note" hidden></p>
     </div>
-    <div class="chips" id="heroChips"></div>
-    <div class="stat-grid" id="statGrid"></div>
-    <div class="sunbox">
-      <header class="panel-head"><span class="eyebrow">Sun path</span><span class="daylen" id="dayLen">—</span></header>
-      <svg id="sunSvg" viewBox="0 0 260 118" role="img" aria-label="Sun position">
-        <line class="horizon" x1="6" y1="104" x2="254" y2="104"/>
-        <path class="arc-bg" d="M14 104 Q 130 -6 246 104"/>
-        <path class="arc-fill" id="arcFill" d="M14 104 Q 130 -6 246 104"/>
-        <circle class="sun-halo" id="sunHalo" r="11" cx="14" cy="104"/>
-        <circle class="sun-dot" id="sunDot" r="6" cx="14" cy="104"/>
-      </svg>
-      <div class="sun-times"><span class="st"><b id="sunrise">—</b></span><span class="st"><b id="sunset">—</b></span></div>
+    <div class="toggle-row" data-layer="storms">
+      <label class="toggle"><input type="checkbox" id="tgStorms" checked><span class="switch" aria-hidden="true"></span><span class="tg-label">Storms &amp; LPAs</span></label>
+      <p class="layer-note" hidden></p>
     </div>
-    <div class="panel-head"><span class="eyebrow">Next 24 hours</span>
-      <div class="rail-btns">
-        <button type="button" class="iconbtn well press" id="hourPrev" aria-label="Scroll back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
-        <button type="button" class="iconbtn well press" id="hourNext" aria-label="Scroll forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
-      </div>
+    <div class="toggle-row" data-layer="tracks">
+      <label class="toggle"><input type="checkbox" id="tgTracks" checked><span class="switch" aria-hidden="true"></span><span class="tg-label">Forecast tracks</span></label>
+      <p class="layer-note" hidden></p>
     </div>
-    <div class="hour-strip" id="hourStrip"></div>
-    <div class="panel-head"><span class="eyebrow">7-day outlook</span></div>
-    <div class="day-list" id="dayList"></div>
   </div>
+  <h2>Intensity</h2>
+  <div class="ramp" aria-hidden="true">
+    <span style="background:var(--intensity-light)"></span><span style="background:var(--intensity-moderate)"></span><span style="background:var(--intensity-heavy)"></span><span style="background:var(--intensity-extreme)"></span>
+  </div>
+  <div class="ramp-labels"><span>Light</span><span>Strong</span><span>Very strong</span><span>Extreme</span></div>
+  <p class="cred">Data: OpenStreetMap · RainViewer · Open-Meteo · GDACS · NOAA/NHC · PAGASA/JTWC</p>
 </section>
 
-<div class="attrib" aria-label="Attribution">© Esri · © OpenStreetMap · Radar © RainViewer · Weather © Open-Meteo</div>
-
-<div class="loader off" id="loader" role="status"><div class="loader-card">
-  <div class="spinner-wrap"><div class="spinner-disc glass"></div><div class="spinner-ring"></div></div>
-  <p class="loader-label" id="loaderLabel">Reading the sky…</p>
-</div></div>
-<div class="toast glass pane-top" id="toast" role="alert">
-  <svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3Z"/><line x1="12" y1="10" x2="12" y2="14.5"/></svg>
-  <span id="toastMsg"></span>
+<!-- About / disclaimer modal -->
+<div class="modal" id="aboutModal" hidden>
+  <div class="modal-card glass glass-signature" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <button class="icon-btn modal-close" id="aboutClose" type="button" aria-label="Close about">✕</button>
+    <h2 id="aboutTitle">About AtmosVue</h2>
+    <p>AtmosVue aggregates public weather data into a single tracking board for the Philippines and the wider Western Pacific. It is built for <strong>general awareness only</strong>. It is <strong>not an official warning system</strong>, and forecasts — especially Philippines-specific ones, which depend on a manually updated <code>data/ph-storms.json</code> file — can lag or be wrong.</p>
+    <h3>Sources</h3>
+    <ul class="sources">
+      <li><a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a> — basemap</li>
+      <li><a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a> — precipitation radar tiles</li>
+      <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> — ambient wind &amp; pressure grid</li>
+      <li><a href="https://www.gdacs.org" target="_blank" rel="noopener">GDACS</a> — global tropical cyclone events</li>
+      <li><a href="https://www.nhc.noaa.gov" target="_blank" rel="noopener">NOAA / NHC</a> — Atlantic &amp; Eastern Pacific storms, genesis outlook</li>
+      <li><a href="https://www.pagasa.dost.gov.ph" target="_blank" rel="noopener">PAGASA</a> / JTWC — Philippine bulletins (via local JSON drop)</li>
+    </ul>
+    <p class="modal-foot">For watches, warnings and anything safety-critical, always consult <a href="https://www.pagasa.dost.gov.ph" target="_blank" rel="noopener">pagasa.dost.gov.ph</a>.</p>
+  </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<!-- Fatal fallback if the CDN mapping library itself never loads -->
+<div class="fatal chip-solid" id="fatal" hidden>
+  AtmosVue couldn’t load its mapping library. Check your connection and reload — the site has no offline mode.
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-(() => {
-"use strict";
-/* =====================================================================
-   AtmosVue — map-first Liquid Glass weather.
-   Open-Meteo (176-pt grid + point forecast) · RainViewer radar ·
-   BigDataCloud reverse geocode · Esri Dark Gray basemap · Leaflet.
-===================================================================== */
-const API = {
-  forecast: "https://api.open-meteo.com/v1/forecast",
-  geocode:  "https://geocoding-api.open-meteo.com/v1/search",
-  reverse:  "https://api.bigdatacloud.net/data/reverse-geocode-client",
-  radar:    "https://api.rainviewer.com/public/weather-maps.json"
+/* AtmosVue — all application logic lives in this single block. */
+(function () {
+'use strict';
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+
+if (!window.L) { $('#fatal').hidden = false; return; }
+
+/* ---------- tokens shared with CSS (§3.2 / §5.1) ---------- */
+const ACCENT = '#45d6e6';
+const RAMP = { light:'#FFE066', moderate:'#FB8C00', heavy:'#E64A19', extreme:'#7A0C0C' };
+const rampColor = k => k == null ? 'rgba(233,242,246,.85)'
+  : k < 17 ? RAMP.light : k < 39 ? RAMP.moderate : k < 62 ? RAMP.heavy : RAMP.extreme;
+const CLASS_LABEL = {
+  lpa:'LPA', invest:'Invest / LPA', tropical_depression:'Tropical depression',
+  tropical_storm:'Tropical storm', typhoon:'Typhoon'
 };
-const $ = (s, r=document) => r.querySelector(s);
-const $$ = (s, r=document) => [...r.querySelectorAll(s)];
-const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
-const lerp = (a,b,t) => a + (b-a)*t;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const els = {};
-["map","windCanvas","searchForm","searchInput","clearBtn","suggest","units","locateBtn","dashBtn",
- "legend","legendBody","legendBtn","syscard","sysTitle","sysSub","sysBody","sysClose",
- "dash","dashExpand","placeName","placeMeta","clockText","heroTemp","heroCond","heroIcon","heroChips",
- "statGrid","sunSvg","arcFill","sunDot","sunHalo","dayLen","sunrise","sunset","hourStrip","hourPrev",
- "hourNext","dayList","loader","loaderLabel","toast","toastMsg"]
- .forEach(id => els[id] = document.getElementById(id));
+/* ---------- state ---------- */
+const state = {
+  systems: [], selectedId: null,
+  layers: { rain:true, wind:true, storms:true, tracks:true },
+  avail:  { rain:null, wind:null, ph:null, gdacs:null, nhc:null }
+};
 
-const state = { place:null, data:null, unit:"c", tz:null, clockTimer:null,
-                layers:{rain:true, chance:true, wind:true, pressure:false, systems:true, radar:false},
-                field:null, suppressClick:false };
+/* ---------- map (§4.1) ---------- */
+const map = L.map('map', { zoomControl:false, minZoom:3, maxZoom:18, worldCopyJump:true })
+             .setView([12.8797, 121.7740], 6);
+L.control.zoom({ position:'topright' }).addTo(map);
 
-/* ---------------- helpers ---------------- */
-async function getJSON(url, ms=12000){
-  const c = new AbortController(); const t = setTimeout(()=>c.abort(), ms);
-  try { const r = await fetch(url, {signal:c.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
-  finally { clearTimeout(t); }
+/* Dark-themed basemap via CSS filter on its OWN pane — overlays stay untouched */
+map.createPane('basemap'); map.getPane('basemap').style.zIndex = 200;
+map.getPane('basemap').classList.add('pane-basemap');
+map.createPane('radar');   map.getPane('radar').style.zIndex = 240;
+map.getPane('radar').classList.add('pane-noevents');
+map.createPane('wind');    map.getPane('wind').style.zIndex = 320;
+map.getPane('wind').classList.add('pane-noevents');
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  pane:'basemap', maxZoom:19, attribution:'© OpenStreetMap contributors'
+}).addTo(map);
+map.attributionControl.setPrefix(false);
+map.attributionControl.addAttribution('Storm data: GDACS · NOAA/NHC · PAGASA/JTWC');
+
+const radarLayer = L.layerGroup(), windLayer = L.layerGroup(),
+      stormLayer = L.layerGroup(), trackLayer = L.layerGroup();
+
+function syncLayers(){
+  [['rain',radarLayer],['wind',windLayer],['storms',stormLayer],['tracks',trackLayer]]
+    .forEach(([k,g]) => state.layers[k] ? map.addLayer(g) : map.removeLayer(g));
 }
-const fmtTemp = c => state.unit==="c" ? Math.round(c) : Math.round(c*9/5+32);
-const degSym  = () => state.unit==="c" ? "°C" : "°F";
-const fmtWind = k => state.unit==="c" ? Math.round(k)+" km/h" : Math.round(k*0.621371)+" mph";
-const fmtRain = m => state.unit==="c" ? m.toFixed(1)+" mm/h" : (m*0.0394).toFixed(2)+" in/h";
-const fmtClock = iso => new Date(iso).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
-const fmtHour = iso => { const h=+iso.slice(11,13); return (h%12||12)+(h<12?"AM":"PM"); };
-const flag = cc => cc ? String.fromCodePoint(...[...cc.toUpperCase()].map(c=>0x1F1E6+c.charCodeAt(0)-65)) : "";
-const fmtLat = (la,lo) => Math.abs(la).toFixed(1)+"°"+(la>=0?"N":"S")+" "+Math.abs(lo).toFixed(1)+"°"+(lo>=0?"E":"W");
 
-let toastTimer=null;
-function toast(m){ els.toastMsg.textContent=m; els.toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>els.toast.classList.remove("show"),4600); }
-const showLoader = m => { els.loaderLabel.textContent=m||"Reading the sky…"; els.loader.classList.remove("off"); };
-const hideLoader = () => els.loader.classList.add("off");
+/* ---------- Rain radar — RainViewer (§4.2, §5.1) ---------- */
+async function loadRadar(){
+  try {
+    const r = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    const frames = j?.radar?.past;
+    if (!frames?.length) throw 0;
+    const f = frames[frames.length - 1];
+    /* Scheme 4 ≈ yellow→orange→red ramp; adjust per RainViewer docs if desired. */
+    const url = `${j.host}${f.path}/256/{z}/{x}/{y}/4/1_1.png`;
+    radarLayer.clearLayers();
+    L.tileLayer(url, { pane:'radar', opacity:0.78, attribution:'Radar © <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>' })
+      .addTo(radarLayer);
+    setToggleAvail('rain', true);
+  } catch {
+    radarLayer.clearLayers();
+    setToggleAvail('rain', false, 'Rain radar is unavailable right now.');
+  }
+}
 
-/* ---------------- WMO + animated icons ---------------- */
-const WMO = {0:["Clear sky","sun"],1:["Mostly clear","sun"],2:["Partly cloudy","partly"],3:["Overcast","cloud"],45:["Fog","fog"],48:["Icy fog","fog"],51:["Light drizzle","drizzle"],53:["Drizzle","drizzle"],55:["Heavy drizzle","drizzle"],56:["Freezing drizzle","drizzle"],57:["Freezing drizzle","drizzle"],61:["Light rain","rain"],63:["Rain","rain"],65:["Heavy rain","rain"],66:["Freezing rain","rain"],67:["Freezing rain","rain"],71:["Light snow","snow"],73:["Snow","snow"],75:["Heavy snow","snow"],77:["Snow grains","snow"],80:["Light showers","rain"],81:["Showers","rain"],82:["Heavy showers","rain"],85:["Snow showers","snow"],86:["Snow showers","snow"],95:["Thunderstorm","thunder"],96:["Thunderstorm","thunder"],99:["Hailstorm","thunder"]};
-const wmoInfo = c => WMO[c]||["Unknown","cloud"];
-const iconKey = (c,d=true)=>{const k=wmoInfo(c)[1]; if(!d&&k==="sun")return"moon"; if(!d&&k==="partly")return"partlynight"; return k;};
-const themeFor = (c,d)=>{const k=wmoInfo(c)[1]; if(k==="sun"||k==="partly")return d?"clear-day":"clear-night"; if(k==="fog")return"fog"; if(k==="snow")return"snow"; if(k==="thunder")return"thunder"; if(k==="drizzle"||k==="rain")return"rain"; return"overcast";};
+/* ---------- Wind grid — Open-Meteo (§4.2, §5.2) ---------- */
+let windTimer = null, windToken = 0;
+map.on('moveend zoomend', () => { clearTimeout(windTimer); windTimer = setTimeout(sampleWind, 400); });
 
-const CLOUD='<path class="cloudbody" fill="#FFF" fill-opacity=".96" stroke="rgba(20,42,72,.1)" d="M46 48H21a10 10 0 1 1 2.6-19.7A14 14 0 0 1 50.8 31 9 9 0 0 1 46 48Z"/>';
-const ICONS = {
- sun:'<g class="spin-sun"><g class="rays" stroke="#FFD75E" stroke-width="3.4" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="12.5"/><line x1="32" y1="51.5" x2="32" y2="58"/><line x1="6" y1="32" x2="12.5" y2="32"/><line x1="51.5" y1="32" x2="58" y2="32"/><line x1="13.6" y1="13.6" x2="18.2" y2="18.2"/><line x1="45.8" y1="45.8" x2="50.4" y2="50.4"/><line x1="13.6" y1="50.4" x2="18.2" y2="45.8"/><line x1="45.8" y1="18.2" x2="50.4" y2="13.6"/></g><circle cx="32" cy="32" r="12.5" fill="#FFD75E"/></g>',
- moon:'<path fill="#EAF2FF" d="M40 6a25 25 0 1 0 18 34A21 21 0 0 1 40 6Z"/><circle class="tw tw1" cx="46" cy="13" r="1.7" fill="#EAF2FF"/><circle class="tw tw2" cx="54" cy="23" r="1.2" fill="#EAF2FF"/>',
- partly:'<g class="spin-sun"><g class="rays" stroke="#FFD75E" stroke-width="2.6" stroke-linecap="round"><line x1="20" y1="5.5" x2="20" y2="9.5"/><line x1="5.5" y1="20" x2="9.5" y2="20"/><line x1="9.8" y1="9.8" x2="12.6" y2="12.6"/><line x1="20" y1="34.5" x2="20" y2="30.5"/><line x1="34.5" y1="20" x2="30.5" y2="20"/><line x1="30.2" y1="9.8" x2="27.4" y2="12.6"/></g><circle cx="20" cy="20" r="8.5" fill="#FFD75E"/></g><g class="drift">'+CLOUD+'</g>',
- partlynight:'<path fill="#EAF2FF" d="M22 5a13.5 13.5 0 1 0 9.7 18.4A11.3 11.3 0 0 1 22 5Z"/><g class="drift">'+CLOUD+'</g>',
- cloud:'<g class="drift"><path fill="#FFF" fill-opacity=".55" d="M50 30a10 10 0 0 0-9.6-7.4A13 13 0 0 0 28 18Z"/>'+CLOUD+'</g>',
- fog:'<g class="drift" transform="translate(0,-4)">'+CLOUD+'</g><g class="foglines" stroke="#DDE7F2" stroke-width="3" stroke-linecap="round"><line class="fl fl1" x1="14" y1="52" x2="46" y2="52"/><line class="fl fl2" x1="20" y1="57.5" x2="52" y2="57.5"/><line class="fl fl3" x1="14" y1="63" x2="40" y2="63"/></g>',
- drizzle:'<g class="drift">'+CLOUD+'</g><g stroke="#7FC8FF" stroke-width="3" stroke-linecap="round"><line class="fall f1" x1="26" y1="51" x2="24.6" y2="56"/><line class="fall f2" x1="38" y1="51" x2="36.6" y2="56"/></g>',
- rain:'<g class="drift">'+CLOUD+'</g><g stroke="#7FC8FF" stroke-width="3.2" stroke-linecap="round"><line class="fall f1" x1="24" y1="51" x2="21.8" y2="59"/><line class="fall f2" x1="33" y1="51" x2="30.8" y2="59"/><line class="fall f3" x1="42" y1="51" x2="39.8" y2="59"/></g>',
- snow:'<g class="drift">'+CLOUD+'</g><g fill="#FFF"><circle class="flake k1" cx="24" cy="53" r="2.1"/><circle class="flake k2" cx="33" cy="55" r="1.7"/><circle class="flake k3" cx="42" cy="53" r="2.1"/></g>',
- thunder:'<g class="drift">'+CLOUD+'</g><polygon class="bolt" fill="#FFD95E" points="33,42 25,54 31,54 27.5,63 40,49 33.6,49 38,42"/>'
-};
-const iconSVG = k => '<svg class="wicon" viewBox="0 0 64 64" aria-hidden="true">'+(ICONS[k]||ICONS.cloud)+'</svg>';
-const IC = {
- thermo:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 13.6V5a2 2 0 1 1 4 0v8.6a4.5 4.5 0 1 1-4 0Z"/></svg>',
- hilow:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14V5M4.5 7.5 7 5l2.5 2.5M17 10v9M14.5 16.5 17 19l2.5-2.5"/></svg>',
- wind:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8.5h10a2.6 2.6 0 1 0-2.5-3.3M3 12.5h15a2.6 2.6 0 1 1-2.5 3.3M3 16.5h7a2.3 2.3 0 1 1-2.2 3"/></svg>',
- drop:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/></svg>',
- gauge:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.6-4.6"/></svg>',
- uv:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6"/></svg>',
- cloudS:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M17.5 18h-9a4.5 4.5 0 1 1 1.2-8.9A6 6 0 0 1 21 11.5 3.8 3.8 0 0 1 17.5 18Z"/></svg>',
- pop:'<svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5s6 6.7 6 11a6 6 0 0 1-12 0c0-4.3 6-11 6-11Z"/></svg>',
- arrow:'<svg class="wind-arrow" viewBox="0 0 24 24"><path d="M12 3.2 17.6 17l-5.6-3-5.6 3Z" fill="currentColor"/></svg>'
-};
-
-/* =====================================================================
-   MAP — Esri Dark Gray Canvas (reliable, key-free) + dark error tile
-===================================================================== */
-const ERR_TILE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-const map = L.map("map", { zoomControl:false, attributionControl:false, worldCopyJump:true, minZoom:2, maxZoom:11, zoomSnap:.5 })
-             .setView([18, 8], 3);
-L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-            { maxZoom:16, opacity:.96, errorTileUrl:ERR_TILE }).addTo(map);
-L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
-            { maxZoom:16, opacity:.9, errorTileUrl:ERR_TILE }).addTo(map);
-
-const zoomUI = document.createElement("div");
-zoomUI.className = "zoomui";
-zoomUI.innerHTML = '<button class="iconbtn well press" id="zin" aria-label="Zoom in">+</button><button class="iconbtn well press" id="zout" aria-label="Zoom out">−</button>';
-document.body.appendChild(zoomUI);
-$("#zin").addEventListener("click", () => map.zoomIn());
-$("#zout").addEventListener("click", () => map.zoomOut());
-
-/* =====================================================================
-   ATMOSPHERIC FIELD — 176-point Open-Meteo grid over the viewport
-===================================================================== */
-const COLS=16, ROWS=11;
-let fieldSeq=0, fieldBounds=null;
-
-async function refreshField(){
-  const b = map.getBounds();
-  const west=b.getWest(), east=b.getEast();
-  if (west > east) return;
-  const south=b.getSouth(), north=b.getNorth();
-  const lats=[], lngs=[], la=[], lo=[];
-  for (let r=0;r<ROWS;r++) lats.push(north-(north-south)*r/(ROWS-1));
-  for (let c=0;c<COLS;c++) lngs.push(west+(east-west)*c/(COLS-1));
-  for (const a of lats) for (const o of lngs){ la.push(a.toFixed(2)); lo.push(o.toFixed(2)); }
-  const seq=++fieldSeq;
-  try{
-    const url = API.forecast+"?latitude="+la.join(",")+"&longitude="+lo.join(",")
-      +"&current=pressure_msl,wind_speed_10m,wind_direction_10m,precipitation,weather_code"
-      +"&hourly=precipitation_probability&forecast_days=1&timezone=UTC";
-    const raw = await getJSON(url, 15000);
-    if (seq!==fieldSeq) return;
-    const list = Array.isArray(raw)?raw:[raw];
-    const cells = list.map(d=>{
-      const cur=d.current, rad=cur.wind_direction_10m*Math.PI/180, sp=cur.wind_speed_10m;
-      return { p:cur.pressure_msl, sp, u:-Math.sin(rad)*sp, v:-Math.cos(rad)*sp,
-               pr:cur.precipitation, code:cur.weather_code,
-               pop:d.hourly?.precipitation_probability?.[0] ?? 0 };
+async function sampleWind(){
+  if (!state.layers.wind) return;
+  const token = ++windToken;
+  try {
+    const b = map.getBounds();
+    const z = map.getZoom();
+    const cols = Math.min(12, Math.max(6, Math.round(z * 1.4)));
+    let rows   = Math.min(8,  Math.max(4, Math.round(cols * 0.62)));
+    if (cols * rows > 96) rows = Math.floor(96 / cols);
+    /* Open-Meteo pairs lat[i] with lon[i], so build explicit grid pairs */
+    const lats = [], lons = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      lats.push((b.getSouth() + (b.getNorth()-b.getSouth()) * (r+0.5)/rows).toFixed(3));
+      lons.push((b.getWest()  + (b.getEast() -b.getWest())  * (c+0.5)/cols).toFixed(3));
+    }
+    const url = 'https://api.open-meteo.com/v1/forecast'
+      + `?latitude=${lats.join(',')}&longitude=${lons.join(',')}`
+      + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure'
+      + '&wind_speed_unit=kmh&timezone=UTC';
+    const res = await fetch(url);
+    if (!res.ok) throw 0;
+    const json = await res.json();
+    if (token !== windToken) return;               /* a newer pan superseded us */
+    const pts = Array.isArray(json) ? json : [json];
+    windLayer.clearLayers();
+    pts.forEach(p => {
+      const c = p.current; if (!c || c.wind_speed_10m == null) return;
+      const spd = c.wind_speed_10m, dir = c.wind_direction_10m ?? 0;
+      /* Meteorological direction = where wind comes FROM; arrow points where it goes */
+      const rot = (dir + 180) % 360;
+      const sc  = (0.8 + Math.min(spd, 80) / 100).toFixed(2);
+      const html = `<div class="wind-arrow" style="transform:rotate(${rot}deg) scale(${sc});color:${rampColor(spd)}">` +
+        `<svg viewBox="0 0 24 24"><path d="M12 2 L18 16 L12 12.8 L6 16 Z" fill="currentColor"/></svg></div>`;
+      L.marker([p.latitude ?? +lats[0], p.longitude ?? +lons[0]], {
+        icon: L.divIcon({ className:'wind-wrap', html, iconSize:[16,16], iconAnchor:[8,8] }),
+        interactive:false, pane:'wind', keyboard:false
+      }).addTo(windLayer);
     });
-    state.field = { lats, lngs, cells };
-    fieldBounds = L.latLngBounds([south,west],[north,east]);
-    renderOverlays(); detectSystems();
-  }catch(e){ console.error(e); }
-}
-
-function sample(lat,lng){
-  const f=state.field; if(!f) return null;
-  const {lats,lngs,cells}=f;
-  const dy=(lats[0]-lats[ROWS-1])/(ROWS-1), dx=(lngs[COLS-1]-lngs[0])/(COLS-1);
-  const fy=(lats[0]-lat)/dy, fx=(lng-lngs[0])/dx;
-  if (fy<0||fx<0||fy>ROWS-1||fx>COLS-1) return null;
-  const r0=Math.floor(fy), c0=Math.floor(fx), tr=fy-r0, tc=fx-c0;
-  const r1=Math.min(r0+1,ROWS-1), c1=Math.min(c0+1,COLS-1);
-  const A=cells[r0*COLS+c0], B=cells[r0*COLS+c1], C=cells[r1*COLS+c0], D=cells[r1*COLS+c1];
-  const mix=(a,b,t)=>a+(b-a)*t, M={};
-  for (const k of ["p","sp","u","v","pr","pop"])
-    M[k]=mix(mix(A[k],B[k],tc), mix(C[k],D[k],tc), tr);
-  return M;
-}
-
-/* ---------------- color ramps ---------------- */
-function rampColor(stops, v){
-  if (v<=stops[0][0]) return stops[0];
-  for (let i=0;i<stops.length-1;i++){
-    const [v0,r0,g0,b0,a0]=stops[i], [v1,r1,g1,b1,a1]=stops[i+1];
-    if (v<=v1){ const t=(v-v0)/(v1-v0);
-      return [lerp(r0,r1,t),lerp(g0,g1,t),lerp(b0,b1,t),lerp(a0,a1,t)]; }
-  }
-  return stops[stops.length-1];
-}
-const RAIN_STOPS=[
- [0.0, 255,255,255,0], [0.2, 255,224,70,.55], [2, 255,205,40,.78],
- [10, 255,140,0,.85], [25, 255,45,60,.9], [60, 125,0,10,.95]];
-const CHANCE_STOPS=[
- [0, 255,255,255,0], [20, 150,220,255,.25], [50, 70,150,255,.6], [100, 130,90,255,.85]];
-const PRESS_COLOR = p => {
-  if (p<1008){ const t=clamp((1008-p)/26,0,1); return [70,140,255,.55*t]; }
-  if (p>1018){ const t=clamp((p-1018)/20,0,1); return [255,170,90,.4*t]; }
-  return [0,0,0,0];
-};
-const windColor = sp =>
-  sp<20 ? "rgba(255,255,255,.55)" : sp<39 ? "rgba(140,225,255,.7)" :
-  sp<62 ? "rgba(255,220,90,.8)" : sp<119 ? "rgba(255,140,60,.85)" : "rgba(255,70,70,.95)";
-
-/* ---------------- raster overlays ---------------- */
-const BLANK="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
-const ovRain   = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.66, className:"ov ov-rain",   interactive:false}).addTo(map);
-const ovChance = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.55, className:"ov ov-chance", interactive:false}).addTo(map);
-const ovPress  = L.imageOverlay(BLANK, [[0,0],[1,1]], {opacity:.42, className:"ov ov-press",  interactive:false}).addTo(map);
-
-function fieldCanvas(get){
-  const cv=document.createElement("canvas"); cv.width=COLS; cv.height=ROWS;
-  const ctx=cv.getContext("2d"), f=state.field;
-  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
-    const [cr,cg,cb,ca]=get(f.cells[r*COLS+c]);
-    ctx.fillStyle=`rgba(${cr|0},${cg|0},${cb|0},${ca})`;
-    ctx.fillRect(c,r,1,1);
-  }
-  return cv.toDataURL();
-}
-function renderOverlays(){
-  if (!state.field||!fieldBounds) return;
-  ovRain.setBounds(fieldBounds); ovChance.setBounds(fieldBounds); ovPress.setBounds(fieldBounds);
-  if (state.layers.rain)     ovRain.setUrl(fieldCanvas(c=>rampColor(RAIN_STOPS,c.pr)));
-  if (state.layers.chance)   ovChance.setUrl(fieldCanvas(c=>rampColor(CHANCE_STOPS,c.pop)));
-  if (state.layers.pressure) ovPress.setUrl(fieldCanvas(c=>PRESS_COLOR(c.p)));
-}
-
-/* =====================================================================
-   WIND FLOW — particle advection
-===================================================================== */
-const wcv=els.windCanvas, wctx=wcv.getContext("2d");
-let parts=[], windOn=true, moving=false;
-function sizeWind(){ wcv.width=innerWidth; wcv.height=innerHeight; }
-sizeWind(); addEventListener("resize", sizeWind);
-const spawn=()=>{ const b=map.getBounds();
-  return { lat:lerp(b.getSouth(),b.getNorth(),Math.random()), lng:lerp(b.getWest(),b.getEast(),Math.random()), age:0 }; };
-function seedParts(){ const n=innerWidth<700?240:620; parts=Array.from({length:n},spawn); wctx.clearRect(0,0,wcv.width,wcv.height); }
-function windFrame(){
-  requestAnimationFrame(windFrame);
-  if (!state.field||!windOn||moving||document.hidden) return;
-  const z=map.getZoom(), k=0.05*Math.pow(1.55, z-3);
-  wctx.globalCompositeOperation="destination-out"; wctx.fillStyle="rgba(0,0,0,.07)";
-  wctx.fillRect(0,0,wcv.width,wcv.height);
-  wctx.globalCompositeOperation="lighter"; wctx.lineWidth=1.4; wctx.lineCap="round";
-  for (const p of parts){
-    const s=sample(p.lat,p.lng);
-    if (!s||s.sp<1||p.age>140){ Object.assign(p,spawn()); continue; }
-    const a=map.latLngToContainerPoint([p.lat,p.lng]);
-    p.lat+=s.v*0.0022; p.lng+=s.u*0.0022/Math.max(.2,Math.cos(p.lat*Math.PI/180)); p.age++;
-    const b=map.latLngToContainerPoint([p.lat,p.lng]);
-    wctx.strokeStyle=windColor(s.sp);
-    wctx.beginPath(); wctx.moveTo(a.x,a.y); wctx.lineTo(b.x,b.y); wctx.stroke();
+    setToggleAvail('wind', true);
+  } catch {
+    if (token === windToken) setToggleAvail('wind', false, 'Wind samples could not be loaded.');
   }
 }
-map.on("movestart", ()=>{ moving=true; wctx.clearRect(0,0,wcv.width,wcv.height); });
-map.on("moveend",   ()=>{ moving=false; seedParts(); queueRefresh(); });
-map.on("zoomend",   ()=>{ seedParts(); });
-let refreshT=null;
-function queueRefresh(){ clearTimeout(refreshT); refreshT=setTimeout(refreshField, 700); }
 
-/* =====================================================================
-   SYSTEMS — LPAs always visible (with dev-% badge), storms, highs
-===================================================================== */
-const sysGroup=L.layerGroup().addTo(map);
-const devChance=(p,sp,lat)=>Math.round(clamp(0.45*(1010-p)+0.9*Math.max(0,sp-25)+(Math.abs(lat)<=30?10:0),3,96));
-function classify(sp,lat){
-  const trop=Math.abs(lat)<=23.5;
-  if (sp>=119) return trop?"Hurricane / Typhoon":"Hurricane-force low";
-  if (sp>=89)  return trop?"Severe tropical storm":"Severe storm";
-  if (sp>=62)  return trop?"Tropical storm":"Storm";
-  if (sp>=39&&trop) return "Tropical depression";
-  return null;
+/* ---------- Storm sources (§4.2, §4.3) ---------- */
+function normalize(o){
+  return Object.assign({
+    internationalName:null, maxWindKph:null, gustKph:null, pressureHpa:null, movement:null,
+    genesisProbability48h:null, genesisProbability120h:null, forecastTrack:null, cone:null,
+    summary:null, sourceUrl:null, alertLevel:null, updated:null, prio:3
+  }, o);
 }
-function detectSystems(){
-  sysGroup.clearLayers();
-  if (!state.layers.systems && !state.layers.pressure) return;
-  const f=state.field; if(!f) return;
-  const pts=[];
-  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
-    const cell=f.cells[r*COLS+c], lat=f.lats[r], lng=f.lngs[c];
-    let kind=null;
-    if (cell.sp>=62||cell.p<=996) kind="storm";
-    else if (cell.p<1010) kind="low";
-    else if (cell.p>1024) kind="high";
-    if (kind) pts.push({lat,lng,cell,kind});
+
+async function fetchPh(){
+  try {
+    const r = await fetch('data/ph-storms.json', { cache:'no-store' });
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    const updated = j.updated || null;
+    const systems = (Array.isArray(j.systems) ? j.systems : []).map(s => normalize({
+      id: s.id || ('ph-' + (s.name || Math.random())),
+      name: s.name || 'Unnamed', internationalName: s.internationalName || null,
+      classification: s.classification || 'lpa',
+      lat: num(s.lat), lon: num(s.lon),
+      maxWindKph: num(s.maxWindKph), gustKph: num(s.gustKph), pressureHpa: num(s.pressureHpa),
+      movement: s.movement || null, genesisProbability48h: num(s.genesisProbability48h),
+      forecastTrack: Array.isArray(s.forecastTrack) ? s.forecastTrack : null,
+      summary: s.summary || null, source: s.source || 'PAGASA',
+      sourceUrl: s.sourceUrl || null, updated, prio: 0
+    }));
+    state.avail.ph = true; return systems;
+  } catch { state.avail.ph = false; return []; }
+}
+
+async function fetchGdacs(){
+  try {
+    const r = await fetch('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=TC');
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    const now = Date.now();
+    const systems = (j.features || []).map(f => {
+      const p = f.properties || {}, g = f.geometry || {};
+      if (g.type !== 'Point' || !g.coordinates) return null;
+      const from = p.fromdate ? Date.parse(p.fromdate) : NaN;
+      if (isFinite(from) && now - from > 7 * 864e5) return null;   /* stale events */
+      const sev = String(p.severity || '').toLowerCase();
+      return normalize({
+        id: 'gdacs-' + (p.eventid || p.eventname || Math.random()),
+        name: p.eventname || 'Tropical cyclone',
+        classification: sev.includes('red') ? 'typhoon'
+                      : sev.includes('orange') ? 'tropical_storm' : 'tropical_depression',
+        lat: g.coordinates[1], lon: g.coordinates[0],
+        alertLevel: p.severity ? `${p.severity} alert` : 'GDACS event',
+        source: 'GDACS', sourceUrl: 'https://www.gdacs.org/', updated: p.fromdate || null, prio: 2
+      });
+    }).filter(Boolean);
+    state.avail.gdacs = true; return systems;
+  } catch { state.avail.gdacs = false; return []; }
+}
+
+async function fetchNhc(){
+  try {
+    const r = await fetch('https://www.nhc.noaa.gov/CurrentStorms.json');   /* often CORS-blocked → fail soft */
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    const systems = (j.features || []).map(f => {
+      const p = f.properties || {}, g = f.geometry || {};
+      if (g.type !== 'Point' || !g.coordinates) return null;
+      const type = String(p.STORMTYPE || '').toUpperCase();
+      const w = num(p.WIND);
+      return normalize({
+        id: 'nhc-' + (p.STORMID || p.STORMNAME || Math.random()),
+        name: p.STORMNAME || p.EVENTNAME || 'Unnamed system',
+        classification: /HU|TY/.test(type) ? 'typhoon'
+                      : /TD/.test(type) ? 'tropical_depression' : 'tropical_storm',
+        lat: g.coordinates[1], lon: g.coordinates[0],
+        maxWindKph: w != null ? Math.round(w * 1.852) : null,
+        source: 'NOAA/NHC', sourceUrl: 'https://www.nhc.noaa.gov/', prio: 1
+      });
+    }).filter(Boolean);
+    state.avail.nhc = true; return systems;
+  } catch { state.avail.nhc = false; return []; }
+}
+
+/* Best-effort: NHC ArcGIS service — genesis %, forecast tracks, cones (§4.2, §5.5). */
+async function fetchNhcExtras(){
+  const base = 'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather/MapServer';
+  try {
+    const mr = await fetch(base + '?f=json'); if (!mr.ok) throw 0;
+    const meta = await mr.json(); const layers = meta.layers || [];
+    const pick = re => layers.find(l => re.test(l.name || ''));
+    const q = async l => {
+      if (!l) return null;
+      try {
+        const r = await fetch(`${base}/${l.id}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`);
+        if (!r.ok) return null;
+        return (await r.json()).features || [];
+      } catch { return null; }
+    };
+    const [genesis, cones, tracks] = await Promise.all([
+      q(pick(/genesis|invest/i)), q(pick(/cone/i)), q(pick(/track|forecast/i))
+    ]);
+    return { genesis: genesis || [], cones: cones || [], tracks: tracks || [] };
+  } catch { return { genesis:[], cones:[], tracks:[] }; }
+}
+
+function probFrom(props){
+  let p2 = null, p5 = null;
+  for (const [k, v] of Object.entries(props || {})) {
+    if (typeof v !== 'number' || !/prob|chance|likel/i.test(k)) continue;
+    if (/(2|two).*(day|h)|48/i.test(k)) p2 = v;
+    if (/(5|five).*day|120/i.test(k))  p5 = v;
   }
-  const used=new Set(), systems=[];
-  pts.forEach((p,i)=>{
-    if (used.has(i)) return;
-    const cluster=[p]; used.add(i);
-    pts.forEach((q,j)=>{ if(!used.has(j)&&q.kind===p.kind&&Math.abs(q.lat-p.lat)<4&&Math.abs(q.lng-p.lng)<4){ cluster.push(q); used.add(j);} });
-    const n=cluster.length;
-    const agg={ kind:p.kind, n,
-      lat:cluster.reduce((s,q)=>s+q.lat,0)/n, lng:cluster.reduce((s,q)=>s+q.lng,0)/n,
-      p:Math.min(...cluster.map(q=>q.cell.p)), sp:Math.max(...cluster.map(q=>q.cell.sp)),
-      pr:Math.max(...cluster.map(q=>q.cell.pr)) };
-    if (p.kind==="high") agg.p=Math.max(...cluster.map(q=>q.cell.p));
-    systems.push(agg);
+  return { p2, p5 };
+}
+const featName = f => String((f.properties||{}).STORMNAME || (f.properties||{}).EVENTNAME ||
+                             (f.properties||{}).name || (f.properties||{}).STORM_NAME || '').toLowerCase();
+
+async function loadStorms(){
+  setStatus('Updating storm data…');
+  const [ph, gdacs, nhc, extras] = await Promise.all([fetchPh(), fetchGdacs(), fetchNhc(), fetchNhcExtras()]);
+
+  /* enrich NHC systems with tracks/cones where names match */
+  nhc.forEach(s => {
+    const key = s.name.toLowerCase(); if (!key) return;
+    const match = list => list.find(f => { const n = featName(f); return n && (n.includes(key) || key.includes(n)); });
+    const cone = match(extras.cones);  if (cone) s.cone = cone;
+    const tr   = match(extras.tracks);
+    if (tr?.geometry?.type === 'LineString')
+      s.forecastTrack = tr.geometry.coordinates.map(c => ({ lat:c[1], lon:c[0], t:null }));
   });
-  systems.slice(0,60).forEach(s=>{
-    const trop=Math.abs(s.lat)<=23.5;
-    const cls=classify(s.sp,s.lat);
-    let type=null;
-    if (s.kind==="storm")            { if (state.layers.systems) type="storm"; }
-    else if (s.kind==="low")         { if (state.layers.systems&&cls) type="storm";
-                                       else if (state.layers.systems||state.layers.pressure) type="low"; }
-    else                             { if (state.layers.pressure) type="high"; }
-    if (!type) return;
-    const dev = s.kind==="low" ? devChance(s.p,s.sp,s.lat) : null;
-    const label = type==="storm"?"S":type==="low"?"L":"H";
-    const html = `<div class="sys ${type}${trop&&type!=="high"?" trop":""}"><i class="ring"></i><span>${label}</span>${type==="low"&&dev!=null?`<em>${dev}%</em>`:""}</div>`;
-    const m=L.marker([s.lat,s.lng], { icon:L.divIcon({className:"syswrap", html, iconSize:[46,46], iconAnchor:[23,23]}) });
-    m.on("click", e=>{
-      if (e.originalEvent) L.DomEvent.stop(e.originalEvent);
-      state.suppressClick=true; setTimeout(()=>state.suppressClick=false,350);
-      openSysCard(s,cls,trop);
+
+  /* genesis invests → LPA-equivalent markers with real percentages */
+  const invests = extras.genesis.map(f => {
+    const p = f.properties || {}, g = f.geometry;
+    if (!g || g.type !== 'Point') return null;
+    const { p2, p5 } = probFrom(p);
+    if (p2 == null && p5 == null) return null;
+    return normalize({
+      id: 'nhc-inv-' + (p.OBJECTID ?? p.objectid ?? Math.random()),
+      name: p.name || p.EVENTNAME || 'Invest', classification:'invest',
+      lat: g.coordinates[1], lon: g.coordinates[0],
+      genesisProbability48h: p2 ?? p5, genesisProbability120h: p5,
+      alertLevel:'Genesis outlook', source:'NOAA/NHC',
+      sourceUrl:'https://www.nhc.noaa.gov/', prio:1
     });
-    m.addTo(sysGroup);
+  }).filter(Boolean);
+
+  state.systems = dedupe([...ph, ...nhc, ...invests, ...gdacs]);
+  setToggleAvail('storms', !!(state.avail.ph || state.avail.gdacs || state.avail.nhc),
+                 'All storm feeds are unreachable right now.');
+  renderList(); renderMarkers(); updateStatus();
+  if (state.selectedId) {
+    const s = state.systems.find(x => x.id === state.selectedId);
+    s ? renderDetail(s) : closeDetail();
+  }
+}
+
+/* Prefer PH > NHC > GDACS when two sources describe the same system nearby */
+function dedupe(list){
+  const kept = [];
+  [...list].sort((a,b) => a.prio - b.prio).forEach(s => {
+    if (s.lat == null || s.lon == null) return;
+    const clash = kept.some(k => Math.abs(k.lat - s.lat) < 2.2 && Math.abs(k.lon - s.lon) < 2.2);
+    if (!clash) kept.push(s);
+  });
+  return kept;
+}
+
+/* ---------- markers (§5.3) ---------- */
+function glyphSvg(s, size){
+  const c = 'var(--mc)'; let inner = '';
+  if (s.classification === 'lpa' || s.classification === 'invest') {
+    inner = `<circle cx="17" cy="17" r="12" fill="rgba(11,18,22,.35)" stroke="${c}" stroke-width="2.4" stroke-dasharray="4.5 4"/><circle cx="17" cy="17" r="4.2" fill="${c}"/>`;
+  } else if (s.classification === 'tropical_depression') {
+    inner = `<circle cx="17" cy="17" r="9.5" fill="${c}" stroke="rgba(255,255,255,.75)" stroke-width="1.6"/>`;
+  } else if (s.classification === 'tropical_storm') {
+    inner = `<circle cx="17" cy="17" r="11" fill="${c}" stroke="rgba(255,255,255,.75)" stroke-width="1.6"/>` +
+      `<path d="M17 6 a11 11 0 0 1 9.6 5.7" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.2" stroke-linecap="round"/>` +
+      `<path d="M17 28 a11 11 0 0 1 -9.6 -5.7" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.2" stroke-linecap="round"/>`;
+  } else { /* typhoon */
+    inner = `<circle cx="17" cy="17" r="15.5" fill="none" stroke="${c}" stroke-width="1.8" opacity=".9"/>` +
+      `<circle cx="17" cy="17" r="11.5" fill="${c}" stroke="rgba(255,255,255,.8)" stroke-width="1.6"/>` +
+      `<path d="M17 5.5 a11.5 11.5 0 0 1 10 6" fill="none" stroke="rgba(255,255,255,.95)" stroke-width="2.4" stroke-linecap="round"/>` +
+      `<path d="M17 28.5 a11.5 11.5 0 0 1 -10 -6" fill="none" stroke="rgba(255,255,255,.95)" stroke-width="2.4" stroke-linecap="round"/>` +
+      `<circle cx="17" cy="17" r="3.2" fill="rgba(11,18,22,.85)"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 34 34" aria-hidden="true">${inner}</svg>`;
+}
+
+function renderMarkers(){
+  stormLayer.clearLayers();
+  state.systems.forEach(s => {
+    if (s.lat == null || s.lon == null) return;
+    const size = s.classification === 'typhoon' ? 44 : 34;
+    const icon = L.divIcon({
+      className:'storm-wrap',
+      html: `<div class="storm-glyph${s.id === state.selectedId ? ' selected' : ''}" style="--mc:${rampColor(s.maxWindKph)}">${glyphSvg(s, size)}</div>`,
+      iconSize:[size, size], iconAnchor:[size/2, size/2]
+    });
+    const m = L.marker([s.lat, s.lon], {
+      icon, keyboard:true,
+      title: `${s.name} — ${CLASS_LABEL[s.classification] || ''}`,
+      alt:   `${s.name}, ${CLASS_LABEL[s.classification] || s.classification}`
+    });
+    m.on('click', () => selectSystem(s.id));
+    stormLayer.addLayer(m);
   });
 }
-function openSysCard(s,cls,trop){
-  els.sysTitle.textContent = cls || (s.kind==="low"?"Low pressure area":s.kind==="high"?"High pressure area":"Storm system");
-  els.sysSub.textContent = fmtLat(s.lat,s.lng)+(trop?" · Tropical belt":"");
-  const dev = s.kind==="low"&&!cls ? devChance(s.p,s.sp,s.lat) : null;
-  els.sysBody.innerHTML = `
-    <div class="sys-rows">
-      <span>Pressure</span><b>${Math.round(s.p)} hPa</b>
-      <span>Max wind</span><b>${fmtWind(s.sp)}</b>
-      <span>Rain rate</span><b>${fmtRain(s.pr)}</b>
-      <span>Class</span><b>${cls??"—"}</b>
+
+/* ---------- left panel (§5.4) ---------- */
+function rowHtml(s){
+  return `<button class="sys-row${s.id === state.selectedId ? ' active' : ''}" data-id="${esc(s.id)}" type="button">
+    <span class="sys-dot" style="--c:${rampColor(s.maxWindKph)}" aria-hidden="true"></span>
+    <span class="sys-main">
+      <span class="sys-name">${esc(s.name)}</span>
+      <span class="sys-sub">${CLASS_LABEL[s.classification] || esc(s.classification)}${
+        s.genesisProbability48h != null ? ` · ${Math.round(s.genesisProbability48h)}% dev.` : ''}</span>
+    </span>
+    <span class="sys-wind num">${s.maxWindKph != null ? Math.round(s.maxWindKph) + ' km/h' : '—'}</span>
+  </button>`;
+}
+const noteHtml = (t, b) => `<div class="sys-note"><strong>${esc(t)}</strong><span>${b}</span></div>`;
+
+function renderList(){
+  const rows = [];
+  const sys = [...state.systems].sort((a,b) => (b.maxWindKph ?? -1) - (a.maxWindKph ?? -1));
+  if (!sys.length) rows.push('<p class="empty">No active storms or LPAs right now.</p>');
+  sys.forEach(s => rows.push(rowHtml(s)));
+  if (state.avail.ph === false)
+    rows.push(noteHtml('No Philippines-specific storm data loaded yet.',
+      'PAGASA/JTWC publish bulletins, not an API — add a <code>data/ph-storms.json</code> drop to enable this layer.'));
+  if (state.avail.nhc === false)
+    rows.push(noteHtml('Atlantic/EPac feed unreachable.',
+      'NOAA’s feed blocks cross-origin browser requests, so that layer is hidden.'));
+  if (state.avail.gdacs === false)
+    rows.push(noteHtml('Global cyclone layer unavailable.', 'GDACS could not be reached.'));
+  $('#systemList').innerHTML = rows.join('');
+  $('#systemList').querySelectorAll('.sys-row')
+    .forEach(el => el.addEventListener('click', () => selectSystem(el.dataset.id)));
+  $('#sysCount').textContent = sys.length;
+}
+
+/* ---------- detail panel — the signature surface (§3.2, §5.4) ---------- */
+const fmtCoord = (la, lo) =>
+  `${Math.abs(la).toFixed(1)}°${la >= 0 ? 'N' : 'S'}, ${Math.abs(lo).toFixed(1)}°${lo >= 0 ? 'E' : 'W'}`;
+const fmtTime = iso => { if (!iso) return '—';
+  try { return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  catch { return esc(iso); } };
+const stat = (k, v) => `<div class="stat"><dt>${k}</dt><dd class="num">${v}</dd></div>`;
+
+function genesisBlock(s){
+  const p48 = s.genesisProbability48h, p120 = s.genesisProbability120h;
+  if (p48 != null || p120 != null) {
+    const v = p48 ?? p120;
+    return `<div class="genesis">
+      <div class="genesis-head"><span>Chance of becoming a tropical storm</span><b class="num">${Math.round(v)}%</b></div>
+      <div class="genesis-bar"><span style="width:${Math.max(3, Math.min(100, v))}%"></span></div>
+      ${p48 != null && p120 != null ? `<p class="genesis-sub num">2-day ${Math.round(p48)}% · 5-day ${Math.round(p120)}%</p>` : ''}
+    </div>`;
+  }
+  if (s.classification === 'lpa' || s.classification === 'invest') {
+    return `<div class="genesis">
+      <div class="genesis-head"><span>Chance of becoming a tropical storm</span></div>
+      <p class="genesis-sub">No numeric probability in this bulletin — monitor PAGASA/JTWC updates for development signals.</p>
+    </div>`;
+  }
+  return '';
+}
+
+function renderDetail(s){
+  const p = $('#detailPanel');
+  const c = rampColor(s.maxWindKph);
+  p.innerHTML = `
+    <div class="detail-top">
+      <div class="detail-glyph" style="--mc:${c}">${glyphSvg(s, 40)}</div>
+      <div class="detail-names">
+        <h2>${esc(s.name)}${s.internationalName ? ` <span class="intl">· ${esc(s.internationalName)}</span>` : ''}</h2>
+        <div class="detail-tags">
+          <span class="tag" style="--c:${c}">${CLASS_LABEL[s.classification] || esc(s.classification)}</span>
+          ${s.alertLevel ? `<span class="tag dim">${esc(s.alertLevel)}</span>` : ''}
+          <span class="tag dim">${esc(s.source)}</span>
+        </div>
+      </div>
+      <button class="icon-btn" id="detailClose" type="button" aria-label="Close details">✕</button>
     </div>
-    ${dev!=null?`<div class="dev"><div class="dev-top"><span>Storm development chance</span><b>${dev}%</b></div><div class="meter"><i class="mfill"></i></div><p class="dev-note">Heuristic from pressure deficit, wind &amp; latitude band.</p></div>`:""}
-    <div class="tags">${trop?'<span class="tag">Tropical</span>':'<span class="tag">Mid-latitude</span>'}${s.kind==="storm"?'<span class="tag hot">Winds ≥ storm force</span>':""}</div>`;
-  if (dev!=null) els.sysBody.querySelector(".mfill").style.setProperty("--pct", dev+"%");
-  els.syscard.classList.add("show");
+    <dl class="stats">
+      ${stat('Position', fmtCoord(s.lat, s.lon))}
+      ${stat('Max wind', s.maxWindKph != null ? Math.round(s.maxWindKph) + ' km/h' : '—')}
+      ${stat('Gusts',    s.gustKph     != null ? Math.round(s.gustKph)     + ' km/h' : '—')}
+      ${stat('Pressure', s.pressureHpa != null ? Math.round(s.pressureHpa) + ' hPa'  : '—')}
+      ${stat('Movement', s.movement ? `${esc(s.movement.direction)} @ ${s.movement.speedKph} km/h` : '—')}
+      ${stat('Updated',  fmtTime(s.updated))}
+    </dl>
+    ${genesisBlock(s)}
+    ${s.summary ? `<p class="summary">${esc(s.summary)}</p>` : ''}
+    <div class="detail-foot">
+      ${s.sourceUrl ? `<a class="chip btn" href="${esc(s.sourceUrl)}" target="_blank" rel="noopener">View bulletin</a>` : ''}
+      ${s.forecastTrack?.length || s.cone ? '<span class="chip-static">Forecast shown on map</span>' : ''}
+    </div>`;
+  p.hidden = false;
+  $('#detailClose').addEventListener('click', closeDetail);
 }
-els.sysClose.addEventListener("click", ()=>els.syscard.classList.remove("show"));
 
-/* =====================================================================
-   LIVE RADAR (RainViewer)
-===================================================================== */
-let radarLayer=null, radarFrames=[], radarIdx=0, radarTimer=null;
-async function radarOn(){
-  try{
-    const j=await getJSON(API.radar, 9000);
-    radarFrames=[...(j.radar?.past||[]).slice(-6), ...(j.radar?.nowcast||[])];
-    if (!radarFrames.length) throw new Error("no frames");
-    const tpl=f=>j.host+f.path+"/256/{z}/{x}/{y}/4/1_0.png";
-    radarLayer=L.tileLayer(tpl(radarFrames[0]), {opacity:.5, zIndex:450, errorTileUrl:ERR_TILE}).addTo(map);
-    radarIdx=0;
-    radarTimer=setInterval(()=>{ radarIdx=(radarIdx+1)%radarFrames.length; radarLayer.setUrl(tpl(radarFrames[radarIdx])); }, 700);
-  }catch(e){ toast("Radar unavailable right now."); state.layers.radar=false; syncToggles(); }
-}
-function radarOff(){ clearInterval(radarTimer); if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; } }
-
-/* =====================================================================
-   LEGEND
-===================================================================== */
-function renderLegend(){
-  const Ls=state.layers, u=state.unit;
-  const W=(a,b)=>u==="c"?`${a}–${b} km/h`:`${Math.round(a*.621)}–${Math.round(b*.621)} mph`;
-  const R=(a,b)=>u==="c"?`${a}–${b} mm/h`:`${(a*.0394).toFixed(2)}–${(b*.0394).toFixed(2)} in/h`;
-  let h="";
-  if (Ls.rain) h+=`<div class="lg-sec"><h3>Rain intensity</h3>
-    <div class="lg-row"><i class="sw"></i><span>No rain</span><em>0 · wind ${W(0,19)}</em></div>
-    <div class="lg-row"><i class="sw sw-light"></i><span>Light</span><em>${R(.2,2)} · ${W(20,38)}</em></div>
-    <div class="lg-row"><i class="sw sw-heavy"></i><span>Heavy</span><em>${R(2,10)} · ${W(39,61)}</em></div>
-    <div class="lg-row"><i class="sw sw-extreme"></i><span>Extreme</span><em>${R(10,25)} · ${W(62,118)}</em></div>
-    <div class="lg-row"><i class="sw sw-torrent"></i><span>Torrential</span><em>25+ · ${W(119,200)}</em></div></div>`;
-  if (Ls.chance) h+=`<div class="lg-sec"><h3>Rain chance</h3><div class="lg-bar bar-chance"></div><div class="lg-scale"><span>0%</span><span>50%</span><span>100%</span></div></div>`;
-  if (Ls.wind) h+=`<div class="lg-sec"><h3>Wind flow</h3>
-    <div class="lg-row"><i class="sw sw-w1"></i><span>Calm</span><em>${W(0,19)}</em></div>
-    <div class="lg-row"><i class="sw sw-w2"></i><span>Light</span><em>${W(20,38)}</em></div>
-    <div class="lg-row"><i class="sw sw-w3"></i><span>Strong</span><em>${W(39,61)}</em></div>
-    <div class="lg-row"><i class="sw sw-w4"></i><span>Storm</span><em>${W(62,118)}</em></div>
-    <div class="lg-row"><i class="sw sw-w5"></i><span>Hurricane</span><em>119+</em></div></div>`;
-  if (Ls.pressure) h+=`<div class="lg-sec"><h3>Pressure</h3>
-    <div class="lg-row"><i class="sw sw-low">L</i><span>Low / trough</span><em>&lt; 1010 hPa</em></div>
-    <div class="lg-row"><i class="sw sw-high">H</i><span>High / ridge</span><em>&gt; 1024 hPa</em></div></div>`;
-  if (Ls.systems) h+=`<div class="lg-sec"><h3>Systems</h3>
-    <div class="lg-row"><i class="sw sw-storm">S</i><span>Storm / depression</span><em>wind ≥ 62 or p ≤ 996</em></div>
-    <div class="lg-row"><i class="sw sw-trop">T</i><span>Tropical system</span><em>within 23.5° of equator</em></div>
-    <div class="lg-row"><i class="sw sw-low">L%</i><span>LPA dev. chance</span><em>badge on marker</em></div></div>`;
-  if (Ls.radar) h+=`<div class="lg-sec"><h3>Live radar</h3><p class="lg-note">Composite reflectivity · past 2 h + 30 min nowcast.</p></div>`;
-  els.legendBody.innerHTML=h||'<p class="lg-note">All layers off.</p>';
-}
-els.legendBtn.addEventListener("click", ()=>els.legend.classList.toggle("min"));
-
-/* ---------------- layer toggles ---------------- */
-function syncToggles(){ $$(".layers input").forEach(i=>{ i.checked=state.layers[i.dataset.layer]; }); }
-$$(".layers input").forEach(inp=>{
-  inp.addEventListener("change", ()=>{
-    const k=inp.dataset.layer; state.layers[k]=inp.checked;
-    if (k==="rain")     { inp.checked?renderOverlays():ovRain.setUrl(BLANK); }
-    if (k==="chance")   { inp.checked?renderOverlays():ovChance.setUrl(BLANK); }
-    if (k==="pressure") { inp.checked?renderOverlays():ovPress.setUrl(BLANK); detectSystems(); }
-    if (k==="wind")     { windOn=inp.checked; wcv.classList.toggle("off",!windOn); if(windOn)seedParts(); }
-    if (k==="systems")  detectSystems();
-    if (k==="radar")    inp.checked?radarOn():radarOff();
-    if (!state.field) refreshField();
-    renderLegend();
+/* ---------- tracks & cones (§5.5) ---------- */
+function drawTrack(s){
+  trackLayer.clearLayers();
+  if (!state.layers.tracks) return;
+  if (s.cone) {
+    try { L.geoJSON(s.cone, { style:{ color:ACCENT, weight:1, opacity:.55, fillColor:ACCENT, fillOpacity:.12, dashArray:'4 6' } })
+            .addTo(trackLayer); } catch {}
+  }
+  const pts = [];
+  if (s.lat != null) pts.push([s.lat, s.lon]);
+  (s.forecastTrack || []).forEach(f => pts.push([f.lat, f.lon]));
+  if (pts.length > 1)
+    L.polyline(pts, { color:ACCENT, weight:2.5, opacity:.9, dashArray:'6 7' }).addTo(trackLayer);
+  (s.forecastTrack || []).forEach(f => {
+    const labeled = /^\+?(24|48)/i.test(f.t || '');
+    const cm = L.circleMarker([f.lat, f.lon],
+      { radius: labeled ? 5 : 3.5, color:'#0b1216', weight:1.5, fillColor:ACCENT, fillOpacity:.95 });
+    if (labeled) cm.bindTooltip(esc(f.t), { permanent:true, direction:'top', offset:[0,-7], className:'track-tip' });
+    cm.addTo(trackLayer);
   });
+}
+
+function selectSystem(id){
+  const s = state.systems.find(x => x.id === id);
+  if (!s) return;
+  state.selectedId = id;
+  renderMarkers(); renderDetail(s); drawTrack(s);
+  $('#listPanel').classList.remove('open');
+  if (s.lat != null && !map.getBounds().contains([s.lat, s.lon]))
+    map.panTo([s.lat, s.lon], { animate: !reduceMotion });
+}
+function closeDetail(){
+  state.selectedId = null;
+  $('#detailPanel').hidden = true;
+  trackLayer.clearLayers();
+  renderMarkers();
+}
+
+/* ---------- controls, availability, status (§5.6, §6) ---------- */
+function setToggleAvail(layer, ok, reason){
+  const ids = { rain:'tgRain', wind:'tgWind', storms:'tgStorms' };
+  const el = document.getElementById(ids[layer]); if (!el) return;
+  const note = document.querySelector(`.toggle-row[data-layer="${layer}"] .layer-note`);
+  if (ok) { el.disabled = false; if (note) note.hidden = true; }
+  else {
+    el.disabled = true; el.checked = false; state.layers[layer] = false; syncLayers();
+    if (note) { note.textContent = reason; note.hidden = false; }
+  }
+}
+function bindToggle(id, key, onChange){
+  const el = $('#' + id);
+  el.addEventListener('change', () => { state.layers[key] = el.checked; syncLayers(); if (onChange) onChange(el.checked); });
+}
+bindToggle('tgRain','rain');
+bindToggle('tgWind','wind', on => { if (on) sampleWind(); });
+bindToggle('tgStorms','storms');
+bindToggle('tgTracks','tracks', on => {
+  if (on && state.selectedId) { const s = state.systems.find(x => x.id === state.selectedId); if (s) drawTrack(s); }
 });
 
-/* ---------------- map click → ripple + dashboard ---------------- */
-map.on("click", e=>{
-  if (state.suppressClick) return;
-  const rip=document.createElement("i"); rip.className="ripple";
-  rip.style.setProperty("--x", e.containerPoint.x+"px"); rip.style.setProperty("--y", e.containerPoint.y+"px");
-  document.body.appendChild(rip); rip.addEventListener("animationend", ()=>rip.remove());
-  pickCoords(e.latlng.lat, e.latlng.lng);
+const setStatus = t => { $('#statusChip').textContent = t; };
+function updateStatus(){
+  const t = new Date().toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+  setStatus(`${state.systems.length} active · refreshed ${t}`);
+}
+
+/* ---------- refresh + housekeeping ---------- */
+async function refreshAll(){ setStatus('Refreshing…'); await Promise.all([loadRadar(), loadStorms()]); sampleWind(); }
+$('#refreshBtn').addEventListener('click', refreshAll);
+
+$('#listHead').addEventListener('click', () => {
+  const p = $('#listPanel'); p.classList.toggle('open');
+  $('#listHead').setAttribute('aria-expanded', p.classList.contains('open'));
 });
 
-/* =====================================================================
-   DASHBOARD
-===================================================================== */
-async function loadPlace(place){
-  showLoader(`Tuning into ${place.name}…`);
-  try{
-    const url=`${API.forecast}?latitude=${place.latitude}&longitude=${place.longitude}`
-     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
-     +`&hourly=temperature_2m,precipitation_probability,weather_code,is_day`
-     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
-     +`&timezone=auto&forecast_days=7`;
-    const d=await getJSON(url);
-    state.place=place; state.data=d; state.tz=d.timezone;
-    document.body.dataset.theme=themeFor(d.current.weather_code, d.current.is_day===1);
-    renderDash(); startClock(); hideLoader();
-  }catch(err){ console.error(err); hideLoader(); toast("Couldn't reach the weather service."); }
-}
-function renderDash(){
-  const d=state.data, cur=d.current;
-  els.placeName.textContent=state.place.name;
-  els.placeMeta.textContent=[state.place.admin1,state.place.country].filter(Boolean).join(", ")||fmtLat(+state.place.latitude,+state.place.longitude);
-  els.heroTemp.innerHTML=`${fmtTemp(cur.temperature_2m)}<span class="deg">°</span>`;
-  els.heroCond.textContent=wmoInfo(cur.weather_code)[0];
-  els.heroIcon.innerHTML=iconSVG(iconKey(cur.weather_code,cur.is_day===1));
-  els.heroChips.innerHTML=`
-    <span class="chip well">${IC.thermo}Feels <b>${fmtTemp(cur.apparent_temperature)}${degSym()}</b></span>
-    <span class="chip well">${IC.hilow}H <b>${fmtTemp(d.daily.temperature_2m_max[0])}°</b> L <b>${fmtTemp(d.daily.temperature_2m_min[0])}°</b></span>
-    <span class="chip well">${IC.wind}<b>${fmtWind(cur.wind_speed_10m)}</b></span>
-    <span class="chip well">${IC.drop}<b>${cur.relative_humidity_2m}%</b></span>`;
-  const dew=cur.temperature_2m-(100-cur.relative_humidity_2m)/5, p=cur.pressure_msl;
-  const uv=d.daily.uv_index_max?.[0]??0, pop=d.daily.precipitation_probability_max?.[0]??0;
-  els.statGrid.innerHTML=`
-    <div class="stat tile lift"><div class="s-head">${IC.drop}<span>Humidity</span></div><div class="s-val">${cur.relative_humidity_2m}<span class="s-unit">%</span></div><div class="s-sub">Dew ${fmtTemp(dew)}°</div></div>
-    <div class="stat tile lift" id="windTile"><div class="s-head">${IC.wind}<span>Wind</span></div><div class="s-val">${fmtWind(cur.wind_speed_10m)}${IC.arrow}</div><div class="s-sub">Gusts ${fmtWind(cur.wind_gusts_10m??cur.wind_speed_10m)}</div></div>
-    <div class="stat tile lift"><div class="s-head">${IC.gauge}<span>Pressure</span></div><div class="s-val">${Math.round(p)}</div><div class="s-sub">${p<1005?"Low":p>1022?"High":"Steady"}</div></div>
-    <div class="stat tile lift"><div class="s-head">${IC.uv}<span>UV max</span></div><div class="s-val">${Math.round(uv)}</div><div class="s-sub">${uv<=2?"Low":uv<=5?"Moderate":uv<=7?"High":"Extreme"}</div></div>
-    <div class="stat tile lift"><div class="s-head">${IC.cloudS}<span>Clouds</span></div><div class="s-val">${cur.cloud_cover}<span class="s-unit">%</span></div><div class="s-sub">Sky cover</div></div>
-    <div class="stat tile lift"><div class="s-head">${IC.pop}<span>Rain</span></div><div class="s-val">${pop}<span class="s-unit">%</span></div><div class="s-sub">Chance today</div></div>`;
-  const wt=$("#windTile"); if(wt) wt.style.setProperty("--winddir",((cur.wind_direction_10m+180)%360)+"deg");
-  renderSun(); renderHourly(); renderDaily();
-}
-const ARC_LEN=els.arcFill.getTotalLength(); els.arcFill.setAttribute("stroke-dasharray",ARC_LEN);
-function renderSun(){
-  const day=state.data.daily, rise=new Date(day.sunrise[0]), set=new Date(day.sunset[0]);
-  els.sunrise.textContent=fmtClock(day.sunrise[0]); els.sunset.textContent=fmtClock(day.sunset[0]);
-  const m=Math.max(0,Math.round((set-rise)/60000)); els.dayLen.textContent=`${Math.floor(m/60)}h ${m%60}m light`;
-  positionSun(rise,set);
-}
-function positionSun(rise,set){
-  let now; try{ now=new Date(new Date().toLocaleString("en-US",{timeZone:state.tz})); }catch{ now=new Date(); }
-  const t=clamp((now-rise)/(set-rise),0,1);
-  const x=(1-t)**2*14+2*(1-t)*t*130+t**2*246, y=(1-t)**2*104+2*(1-t)*t*-6+t**2*104;
-  [els.sunDot,els.sunHalo].forEach(c=>{ c.setAttribute("cx",x.toFixed(1)); c.setAttribute("cy",y.toFixed(1)); });
-  els.arcFill.setAttribute("stroke-dashoffset",(ARC_LEN*(1-t)).toFixed(1));
-  els.sunSvg.classList.toggle("dusk", now<rise||now>set);
-}
-function renderHourly(){
-  const d=state.data,h=d.hourly, hourNow=d.current.time.slice(0,13);
-  let i=h.time.findIndex(t=>t.slice(0,13)===hourNow); if(i<0)i=0;
-  els.hourStrip.innerHTML=Array.from({length:24},(_,n)=>{
-    const x=i+n; if(x>=h.time.length)return"";
-    const pop=h.precipitation_probability?.[x]??0;
-    return `<div class="hour tile lift${n===0?" now":""}"><span class="h-time">${n===0?"Now":fmtHour(h.time[x])}</span>${iconSVG(iconKey(h.weather_code[x],h.is_day[x]===1))}<span class="h-temp">${fmtTemp(h.temperature_2m[x])}°</span><span class="h-pop${pop>=5?"":" ghost"}">${pop>=5?pop+"%":"·"}</span></div>`;
-  }).join("");
-}
-function renderDaily(){
-  const day=state.data.daily, wMin=Math.min(...day.temperature_2m_min), wMax=Math.max(...day.temperature_2m_max), span=Math.max(1,wMax-wMin);
-  els.dayList.innerHTML=day.time.map((iso,i)=>{
-    const name=i===0?"Today":new Date(iso+"T12:00").toLocaleDateString([],{weekday:"short"});
-    const lo=((day.temperature_2m_min[i]-wMin)/span)*100, hi=((day.temperature_2m_max[i]-wMin)/span)*100;
-    const pop=day.precipitation_probability_max?.[i]??0;
-    return `<div class="day-row lift"><span class="d-name">${name}</span><span class="d-ic">${iconSVG(iconKey(day.weather_code[i]))}</span><span class="d-pop${pop>=5?"":" hide"}">${pop}%</span><span class="range-val min">${fmtTemp(day.temperature_2m_min[i])}°</span><div class="range" style="--lo:${lo}%;--hi:${hi}%"><div class="range-fill"></div></div><span class="range-val max">${fmtTemp(day.temperature_2m_max[i])}°</span></div>`;
-  }).join("");
-}
-function startClock(){
-  clearInterval(state.clockTimer);
-  const tick=()=>{ try{ els.clockText.textContent=new Intl.DateTimeFormat("en-GB",{timeZone:state.tz,weekday:"short",hour:"2-digit",minute:"2-digit"}).format(new Date()); }catch{ els.clockText.textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); }
-    if(state.data) positionSun(new Date(state.data.daily.sunrise[0]), new Date(state.data.daily.sunset[0])); };
-  tick(); state.clockTimer=setInterval(tick,1000);
-}
-els.hourPrev.addEventListener("click",()=>els.hourStrip.scrollBy({left:-300,behavior:"smooth"}));
-els.hourNext.addEventListener("click",()=>els.hourStrip.scrollBy({left:300,behavior:"smooth"}));
+const aboutModal = $('#aboutModal');
+$('#aboutBtn').addEventListener('click', () => { aboutModal.hidden = false; });
+$('#aboutClose').addEventListener('click', () => { aboutModal.hidden = true; });
+aboutModal.addEventListener('click', e => { if (e.target === aboutModal) aboutModal.hidden = true; });
 
-function setDash(open){
-  els.dash.classList.toggle("open", open);
-  document.body.classList.toggle("dash-open", open);
-}
-els.dashBtn.addEventListener("click", ()=>setDash(!els.dash.classList.contains("open")));
-els.dashExpand.addEventListener("click", ()=>{
-  els.dash.classList.toggle("full");
-  document.body.classList.toggle("page-dash", els.dash.classList.contains("full"));
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!aboutModal.hidden) aboutModal.hidden = true;
+  else if (!$('#detailPanel').hidden) closeDetail();
 });
 
-/* =====================================================================
-   SEARCH / UNITS / LOCATE
-===================================================================== */
-let searchSeq=0, activeIdx=-1, lastResults=[], debTimer=null;
-const closeSuggest=()=>{ els.suggest.classList.remove("open"); activeIdx=-1; };
-els.searchInput.addEventListener("input", ()=>{
-  const q=els.searchInput.value.trim(); els.clearBtn.hidden=!q; clearTimeout(debTimer);
-  if(q.length<2){ closeSuggest(); return; }
-  debTimer=setTimeout(async ()=>{
-    const seq=++searchSeq;
-    try{ const r=await getJSON(`${API.geocode}?name=${encodeURIComponent(q)}&count=6&language=en&format=json`,8000);
-      if(seq!==searchSeq)return; lastResults=r.results||[];
-      if(!lastResults.length){ closeSuggest(); return; }
-      activeIdx=-1;
-      els.suggest.innerHTML=lastResults.map((p,i)=>`<button type="button" class="sug" role="option" data-i="${i}"><span class="flag">${flag(p.country_code)}</span><span class="sug-txt"><b>${p.name}</b><i>${[p.admin1,p.country].filter(Boolean).join(", ")}</i></span></button>`).join("");
-      els.suggest.classList.add("open");
-    }catch{ closeSuggest(); }
-  },350);
-});
-els.searchInput.addEventListener("keydown", e=>{
-  const open=els.suggest.classList.contains("open");
-  if(e.key==="Escape")closeSuggest();
-  if(!open)return;
-  if(e.key==="ArrowDown"){e.preventDefault();activeIdx=Math.min(activeIdx+1,lastResults.length-1);paint();}
-  if(e.key==="ArrowUp"){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);paint();}
-  function paint(){ $$(".sug",els.suggest).forEach((b,i)=>b.classList.toggle("active",i===activeIdx)); }
-});
-els.searchForm.addEventListener("submit", e=>{ e.preventDefault(); if(lastResults.length) pickPlace(lastResults[activeIdx>=0?activeIdx:0]); });
-els.suggest.addEventListener("click", e=>{ const b=e.target.closest(".sug"); if(b) pickPlace(lastResults[+b.dataset.i]); });
-els.clearBtn.addEventListener("click", ()=>{ els.searchInput.value=""; els.clearBtn.hidden=true; closeSuggest(); els.searchInput.focus(); });
-document.addEventListener("click", e=>{ if(!els.searchForm.contains(e.target)) closeSuggest(); }, {passive:true});
+/* ---------- boot ---------- */
+syncLayers();
+renderList();
+loadRadar();
+loadStorms().then(sampleWind);
+setInterval(() => { if (document.visibilityState === 'visible') loadRadar(); }, 10 * 60 * 1000);
+setInterval(() => { if (document.visibilityState === 'visible') { loadStorms(); sampleWind(); } }, 15 * 60 * 1000);
 
-function pickPlace(p){
-  if(!p)return; closeSuggest(); els.searchInput.value=p.name; els.searchInput.blur();
-  map.flyTo([p.latitude,p.longitude], 8, {duration:1.6});
-  loadPlace({name:p.name, latitude:p.latitude, longitude:p.longitude, admin1:p.admin1, country:p.country});
-}
-async function pickCoords(lat,lon){
-  let name="Pinned location", admin1, country, cc;
-  try{ const r=await getJSON(`${API.reverse}?latitude=${lat}&longitude=${lon}&localityLanguage=en`,6000);
-    name=r.city||r.locality||name; admin1=r.principalSubdivision; country=r.countryName; cc=r.countryCode;
-  }catch{}
-  loadPlace({name, latitude:lat.toFixed(3), longitude:lon.toFixed(3), admin1, country, country_code:cc});
-}
-els.units.addEventListener("click", e=>{
-  const b=e.target.closest("button[data-u]"); if(!b||state.unit===b.dataset.u)return;
-  state.unit=b.dataset.u; els.units.dataset.unit=state.unit;
-  $$("button[data-u]",els.units).forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.u===state.unit)));
-  if(state.data)renderDash(); renderLegend();
-});
-const CUPERTINO={name:"Cupertino",latitude:37.323,longitude:-122.0322,admin1:"California",country:"United States"};
-els.locateBtn.addEventListener("click", ()=>{
-  if(!navigator.geolocation){ toast("Geolocation unsupported."); return; }
-  els.locateBtn.classList.add("busy");
-  navigator.geolocation.getCurrentPosition(
-    p=>{ els.locateBtn.classList.remove("busy"); map.flyTo([p.coords.latitude,p.coords.longitude],8,{duration:1.6}); pickCoords(p.coords.latitude,p.coords.longitude); },
-    ()=>{ els.locateBtn.classList.remove("busy"); toast("Location unavailable."); },
-    {timeout:9000, maximumAge:600000});
-});
-
-/* =====================================================================
-   BOOT
-===================================================================== */
-renderLegend();
-if (matchMedia("(min-width:1180px)").matches) setDash(true);
-seedParts(); windFrame();
-refreshField();
-showLoader("Finding your sky…");
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    p=>pickCoords(p.coords.latitude,p.coords.longitude),
-    ()=>{ map.flyTo([CUPERTINO.latitude,CUPERTINO.longitude],6,{duration:1.4}); loadPlace(CUPERTINO); },
-    {timeout:3500, maximumAge:600000});
-} else { loadPlace(CUPERTINO); }
 })();
 </script>
 </body>
