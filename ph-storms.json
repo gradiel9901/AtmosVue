@@ -1,0 +1,46 @@
+{
+  "updated": "2026-08-20T06:00:00Z",
+  "systems": [
+    {
+      "id": "2026-maymay",
+      "name": "Maymay",
+      "internationalName": "Kujira",
+      "classification": "tropical_storm",
+      "lat": 15.4,
+      "lon": 123.1,
+      "maxWindKph": 65,
+      "gustKph": 80,
+      "pressureHpa": 996,
+      "movement": { "direction": "WNW", "speedKph": 15 },
+      "genesisProbability48h": null,
+      "forecastTrack": [
+        { "t": "+12h", "lat": 15.8, "lon": 122.5, "maxWindKph": 70 },
+        { "t": "+24h", "lat": 16.1, "lon": 121.9, "maxWindKph": 75 },
+        { "t": "+48h", "lat": 17.0, "lon": 120.5, "maxWindKph": 80 }
+      ],
+      "summary": "Tropical Storm Maymay continues to move West-Northwestward over the Philippine Sea towards Northern Luzon with moderate intensity.",
+      "source": "PAGASA",
+      "sourceUrl": "https://www.pagasa.dost.gov.ph/"
+    },
+    {
+      "id": "2026-lpa-99w",
+      "name": "LPA 99W",
+      "internationalName": null,
+      "classification": "lpa",
+      "lat": 10.2,
+      "lon": 130.5,
+      "maxWindKph": 30,
+      "gustKph": 45,
+      "pressureHpa": 1006,
+      "movement": { "direction": "NW", "speedKph": 10 },
+      "genesisProbability48h": 40,
+      "forecastTrack": [
+        { "t": "+24h", "lat": 11.2, "lon": 129.0, "maxWindKph": 35 },
+        { "t": "+48h", "lat": 12.5, "lon": 127.2, "maxWindKph": 45 }
+      ],
+      "summary": "Low Pressure Area 99W embedded within the Intertropical Convergence Zone (ITCZ) shows medium potential for development over the next 48 hours.",
+      "source": "JTWC / PAGASA",
+      "sourceUrl": "https://www.pagasa.dost.gov.ph/"
+    }
+  ]
+}
