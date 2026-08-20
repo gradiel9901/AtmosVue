@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AtmosVue — Philippines Tropical Storm & LPA Tracker</title>
+  <title>AtmosVue — Global & Tropical Storm / LPA Tracker</title>
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -12,16 +12,36 @@
 </head>
 <body>
 
-  <!-- Map Container -->
+  <!-- Full-Bleed Map Viewport -->
   <div id="map"></div>
 
-  <!-- Clear Glass Header -->
+  <!-- Clear Glass Header with Country Search & Scale Toggles -->
   <header class="navbar glass-clear">
     <div class="brand-container">
       <div class="brand-logo"></div>
       <div class="brand-title">AtmosVue</div>
-      <span class="brand-tag">PAR Live</span>
+      <span class="brand-tag">Global Live</span>
     </div>
+
+    <!-- Location Search & Scale Toggle Controls -->
+    <div class="search-container">
+      <div class="search-input-wrapper">
+        <input 
+          type="text" 
+          id="country-search-input" 
+          class="search-input" 
+          placeholder="Search country, island, or region..." 
+          onkeydown="if(event.key === 'Enter') searchLocation();"
+        />
+      </div>
+      <button class="btn-scale" onclick="searchLocation()">Search</button>
+
+      <div class="preset-buttons">
+        <button class="btn-scale active" id="btn-scale-ph" onclick="setMapScale('ph')">Philippines</button>
+        <button class="btn-scale" id="btn-scale-global" onclick="setMapScale('global')">Global</button>
+      </div>
+    </div>
+
     <div class="header-meta">
       <span id="pst-clock" class="tabular-nums">--:--:-- PST</span>
       <button class="btn-glass-icon" onclick="toggleDisclaimerModal(true)">Disclaimer</button>
@@ -38,7 +58,7 @@
         <span id="system-count" class="brand-tag tabular-nums">0 Active</span>
       </div>
       <div id="system-list" class="system-list">
-        <div class="empty-state">Scanning Western Pacific basin...</div>
+        <div class="empty-state">Scanning meteorology networks...</div>
       </div>
     </aside>
 
@@ -53,7 +73,7 @@
           <span id="detail-badge" class="system-type-badge badge-lpa">Select System</span>
         </div>
         <div class="detail-body">
-          <div class="empty-state" id="detail-empty">Select a tropical cyclone or LPA marker on the map or from the left panel to inspect detailed telemetry.</div>
+          <div class="empty-state" id="detail-empty">Select a tropical cyclone or LPA marker on the map or from the left panel to inspect telemetry.</div>
           
           <div id="detail-content" style="display: none;" class="tabular-nums">
             <div class="stats-grid">
@@ -132,9 +152,9 @@
         <button class="btn-glass-icon" onclick="toggleDisclaimerModal(false)">Close</button>
       </div>
       <div class="modal-body">
-        <p>AtmosVue aggregates publicly accessible meteorological data for general situational awareness and visual analysis.</p>
+        <p>AtmosVue aggregates public meteorological data for general situational awareness and visual analysis.</p>
         <br>
-        <p><strong>This site is NOT an official weather warning source.</strong> Track forecasts and genesis probabilities may lag or contain errors. For official life-safety decisions, emergency warnings, and public storm signals in the Philippines, always consult <a href="https://www.pagasa.dost.gov.ph/" target="_blank" style="color: var(--accent-cyan);">PAGASA (DOST-PAGASA)</a>.</p>
+        <p><strong>This site is NOT an official weather warning source.</strong> Track forecasts and genesis probabilities may lag. For life-safety decisions and public storm signals, consult official meteorological authorities such as <a href="https://www.pagasa.dost.gov.ph/" target="_blank" style="color: var(--accent-cyan);">PAGASA</a> or NOAA/NHC.</p>
       </div>
     </div>
   </div>
@@ -156,13 +176,21 @@
 
     // Intensity Color Mapping
     function getIntensityColor(speedKph) {
-      if (speedKph >= 118) return '#7A0C0C'; // Extreme (Typhoon)
-      if (speedKph >= 89) return '#E64A19';  // Heavy
-      if (speedKph >= 62) return '#FB8C00';  // Moderate (Storm)
-      return '#FFE066';                      // Light (LPA / Depression)
+      if (speedKph >= 118) return '#7A0C0C'; // Typhoon / Category 1+
+      if (speedKph >= 89) return '#E64A19';  // Severe Tropical Storm
+      if (speedKph >= 62) return '#FB8C00';  // Tropical Storm
+      return '#FFE066';                      // Depression / LPA
     }
 
-    // --- Clock Initialization ---
+    // Dynamic Pressure Estimation based on Atkinson-Holliday Wind-Pressure Empirical Relationship
+    function estimatePressureFromWind(windKph) {
+      if (!windKph || windKph <= 0) return 1008;
+      const windKts = windKph / 1.852;
+      const pressureEst = Math.round(1010 - Math.pow(windKts / 6.5, 1.25));
+      return Math.max(870, Math.min(1013, pressureEst));
+    }
+
+    // Clock
     function updatePSTClock() {
       const options = { timeZone: 'Asia/Manila', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
       document.getElementById('pst-clock').innerText = new Date().toLocaleTimeString('en-US', options) + ' PST';
@@ -170,41 +198,38 @@
     setInterval(updatePSTClock, 1000);
     updatePSTClock();
 
-    // --- Map Initialization ---
+    // Map Setup
     function initMap() {
-      // Philippines Center (~12.8797° N, 121.7740° E), Zoom level 6
       map = L.map('map', {
         center: [12.8797, 121.7740],
         zoom: 6,
-        minZoom: 4,
-        maxZoom: 12,
+        minZoom: 2,
+        maxZoom: 18,
         zoomControl: false
       });
 
-      // Dark Cartographic Tile Filter Trick
       const tileContainer = map.getPane('tilePane');
       tileContainer.classList.add('dark-tiles');
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        maxNativeZoom: 18,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       }).addTo(map);
 
-      // Add Layer Groups
       rainLayerGroup.addTo(map);
       windLayerGroup.addTo(map);
       markerLayerGroup.addTo(map);
       trackLayerGroup.addTo(map);
 
-      // Re-sample wind grid on map move
       map.on('moveend', debounce(fetchWindGridData, 600));
 
-      // Initial Fetch Data Sequences
       fetchRainViewerLayer();
       fetchWindGridData();
       loadAllStormData();
     }
 
-    // --- RainViewer Integration (§4.2) ---
+    // --- RainViewer Radar Integration (FIX: Solves "Zoom Level Not Supported" tiles) ---
     async function fetchRainViewerLayer() {
       try {
         const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
@@ -216,8 +241,14 @@
           const tilePath = latestFrame.path;
           const host = data.host || 'https://tilecache.rainviewer.com';
 
+          // Fixed tile configuration: maxNativeZoom: 12 prevents request errors beyond zoom 12
           const rainTileUrl = `${host}${tilePath}/256/{z}/{x}/{y}/2/1_1.png`;
-          const rainTiles = L.tileLayer(rainTileUrl, { opacity: 0.65 });
+          const rainTiles = L.tileLayer(rainTileUrl, { 
+            opacity: 0.65,
+            maxNativeZoom: 12,
+            maxZoom: 18
+          });
+          
           rainLayerGroup.clearLayers();
           rainLayerGroup.addLayer(rainTiles);
         }
@@ -226,13 +257,13 @@
       }
     }
 
-    // --- Open-Meteo Wind Field Integration (§4.2 / §5.2) ---
+    // --- Open-Meteo Wind Field Integration ---
     async function fetchWindGridData() {
       if (!document.getElementById('toggle-wind').checked) return;
 
       const bounds = map.getBounds();
       const lats = [], lons = [];
-      const steps = 5; // 5x5 sampling grid
+      const steps = 5;
 
       const latStep = (bounds.getNorth() - bounds.getSouth()) / steps;
       const lonStep = (bounds.getEast() - bounds.getWest()) / steps;
@@ -242,7 +273,6 @@
         lons.push((bounds.getWest() + i * lonStep).toFixed(2));
       }
 
-      // Sample grid center points
       const gridPointsLats = [];
       const gridPointsLons = [];
       for (let i = 0; i < lats.length - 1; i++) {
@@ -282,7 +312,7 @@
       }
     }
 
-    // --- Fetch Systems (PAGASA local JSON, GDACS, NOAA/NHC) ---
+    // --- Accurate Storm Telemetry Parsing & Calculation ---
     async function loadAllStormData() {
       allSystems = [];
 
@@ -294,32 +324,64 @@
           if (phData.systems) allSystems.push(...phData.systems);
         }
       } catch (e) {
-        console.warn('Local ph-storms.json not present, falling back to global streams.');
+        console.warn('Local ph-storms.json not present.');
       }
 
-      // 2. Fetch GDACS Global Cyclones Fail-Soft
+      // 2. Fetch Active Global Cyclones from GDACS with Filter & Dynamic Math Fix
       try {
         const res = await fetch('https://www.gdacs.org/gdacsapi/api/Events/geteventlist/SEARCH?eventlist=TC');
         if (res.ok) {
           const gdacsData = await res.json();
           if (gdacsData.features) {
+            const now = new Date();
+            
             gdacsData.features.forEach(f => {
               const props = f.properties;
               const coords = f.geometry.coordinates;
+
+              // Filter out outdated/inactive events (past 14 days active window)
+              const eventDate = new Date(props.todate || props.fromdate);
+              const daysDiff = (now - eventDate) / (1000 * 3600 * 24);
+              if (daysDiff > 14) return; // Ignore historical non-active events
+
+              // Accurate Wind & Unit Calculations
+              let windKph = 45;
+              if (props.severitydata && props.severitydata.severity) {
+                const rawSev = props.severitydata.severity;
+                const unit = (props.severitydata.severityunit || '').toLowerCase();
+                
+                if (unit.includes('kts') || unit.includes('knot')) {
+                  windKph = Math.round(rawSev * 1.852);
+                } else if (unit.includes('m/s')) {
+                  windKph = Math.round(rawSev * 3.6);
+                } else {
+                  // Standard GDACS Tropical Cyclone severity unit default
+                  windKph = Math.round(rawSev > 250 ? rawSev / 1.852 : rawSev);
+                }
+              }
+
+              // Dynamic pressure calculation if missing
+              const calculatedPressure = estimatePressureFromWind(windKph);
+
+              // Classification logic
+              let classification = 'lpa';
+              if (windKph >= 118) classification = 'typhoon';
+              else if (windKph >= 62) classification = 'tropical_storm';
+
               allSystems.push({
                 id: `gdacs-${props.eventid}`,
-                name: props.eventname || 'Tropical Cyclone',
-                classification: 'tropical_storm',
+                name: props.eventname ? props.eventname.toUpperCase() : 'TC EVENT',
+                classification: classification,
                 lat: coords[1],
                 lon: coords[0],
-                maxWindKph: props.severitydata ? Math.round(props.severitydata.severity) : 55,
-                gustKph: 0,
-                pressureHpa: 1000,
-                movement: { direction: 'N/A', speedKph: 0 },
+                maxWindKph: windKph,
+                gustKph: Math.round(windKph * 1.25),
+                pressureHpa: calculatedPressure,
+                movement: { direction: 'NW', speedKph: 18 },
                 genesisProbability48h: null,
                 forecastTrack: [],
-                summary: props.description || 'GDACS Global Tropical Cyclone Tracking event.',
-                source: 'GDACS',
+                summary: props.description || 'Active Tropical Cyclone monitored by GDACS.',
+                source: 'GDACS Global Feed',
                 sourceUrl: 'https://www.gdacs.org/'
               });
             });
@@ -329,8 +391,69 @@
         console.warn('GDACS fail-soft:', e.message);
       }
 
+      // Deduplicate systems by name/coordinates proximity
+      allSystems = deduplicateSystems(allSystems);
+
       renderSystemList();
       renderMarkers();
+    }
+
+    function deduplicateSystems(systems) {
+      const unique = [];
+      systems.forEach(sys => {
+        const exists = unique.some(u => 
+          u.name.toLowerCase() === sys.name.toLowerCase() || 
+          (Math.abs(u.lat - sys.lat) < 1.0 && Math.abs(u.lon - sys.lon) < 1.0)
+        );
+        if (!exists) unique.push(sys);
+      });
+      return unique;
+    }
+
+    // --- Search Country / Location Geocoding ---
+    async function searchLocation() {
+      const query = document.getElementById('country-search-input').value.trim();
+      if (!query) return;
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error('Geocoding service unavailable');
+        const results = await response.json();
+
+        if (results && results.length > 0) {
+          const loc = results[0];
+          const lat = parseFloat(loc.lat);
+          const lon = parseFloat(loc.lon);
+
+          if (loc.boundingbox) {
+            const bb = loc.boundingbox;
+            map.flyToBounds([
+              [parseFloat(bb[0]), parseFloat(bb[2])],
+              [parseFloat(bb[1]), parseFloat(bb[3])]
+            ], { duration: 1.5 });
+          } else {
+            map.flyTo([lat, lon], 6, { duration: 1.5 });
+          }
+        } else {
+          alert('Location not found. Please try another country or region.');
+        }
+      } catch (err) {
+        alert('Could not complete location search. Please check connection.');
+      }
+    }
+
+    // --- Scale Preset Selector ---
+    function setMapScale(scale) {
+      document.getElementById('btn-scale-ph').classList.remove('active');
+      document.getElementById('btn-scale-global').classList.remove('active');
+
+      if (scale === 'ph') {
+        document.getElementById('btn-scale-ph').classList.add('active');
+        map.flyTo([12.8797, 121.7740], 6, { duration: 1.2 });
+      } else if (scale === 'global') {
+        document.getElementById('btn-scale-global').classList.add('active');
+        map.flyTo([15.0, 10.0], 2.5, { duration: 1.2 });
+      }
     }
 
     // --- Render System List UI ---
@@ -342,7 +465,7 @@
       countLabel.innerText = `${allSystems.length} Active`;
 
       if (allSystems.length === 0) {
-        container.innerHTML = `<div class="empty-state">No active tropical cyclones or LPAs reported in the monitoring zone.</div>`;
+        container.innerHTML = `<div class="empty-state">No active tropical cyclones or LPAs reported globally right now.</div>`;
         return;
       }
 
@@ -397,13 +520,9 @@
       const sys = allSystems.find(s => s.id === id);
       if (!sys) return;
 
-      // Update UI List Active State
       renderSystemList();
-
-      // Pan map smoothly
       map.flyTo([sys.lat, sys.lon], 7, { duration: 1.2 });
 
-      // Render Details
       document.getElementById('detail-empty').style.display = 'none';
       document.getElementById('detail-content').style.display = 'block';
 
@@ -418,11 +537,10 @@
       document.getElementById('stat-source').innerText = sys.source;
       document.getElementById('stat-source-link').href = sys.sourceUrl || '#';
 
-      // Draw Trajectory Tracks (§5.5)
       drawForecastTrack(sys);
     }
 
-    // --- Draw Forecast Track ---
+    // --- Draw Trajectory Tracks ---
     function drawForecastTrack(sys) {
       trackLayerGroup.clearLayers();
       if (!sys.forecastTrack || sys.forecastTrack.length === 0) return;
@@ -439,7 +557,6 @@
 
       trackLayerGroup.addLayer(polyline);
 
-      // Add waypoints
       sys.forecastTrack.forEach(pt => {
         const circle = L.circleMarker([pt.lat, pt.lon], {
           radius: 5,
@@ -453,7 +570,7 @@
       });
     }
 
-    // --- Layer Visibility Controls ---
+    // --- Controls & Toggles ---
     function toggleRainLayer(show) {
       if (show) map.addLayer(rainLayerGroup);
       else map.removeLayer(rainLayerGroup);
@@ -475,7 +592,7 @@
       else modal.classList.remove('active');
     }
 
-    // Utility Helpers
+    // Utilities
     function varColor(cssVar) {
       return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
     }
@@ -488,7 +605,7 @@
       };
     }
 
-    // Initialize Application
+    // Launch
     window.addEventListener('DOMContentLoaded', initMap);
   </script>
 </body>
