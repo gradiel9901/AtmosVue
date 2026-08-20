@@ -8,14 +8,14 @@
   --border-subtle: rgba(255, 255, 255, 0.12);
 
   /* Intensity 4-Stop Ramp */
-  --intensity-light: #FFE066;    /* Light */
-  --intensity-moderate: #FB8C00; /* Strong */
-  --intensity-heavy: #E64A19;    /* Very Strong */
-  --intensity-extreme: #7A0C0C;  /* Extreme */
+  --intensity-light: #FFE066;    /* Light / Depressions */
+  --intensity-moderate: #FB8C00; /* Moderate Storms */
+  --intensity-heavy: #E64A19;    /* Severe Storms */
+  --intensity-extreme: #7A0C0C;  /* Typhoons / Hurricanes */
 
   /* Liquid Glass System Tokens */
-  --glass-bg: rgba(15, 23, 42, 0.65);
-  --glass-bg-hover: rgba(30, 41, 59, 0.75);
+  --glass-bg: rgba(15, 23, 42, 0.68);
+  --glass-bg-hover: rgba(30, 41, 59, 0.80);
   --glass-blur: 24px;
   --glass-saturate: 160%;
   --glass-border: rgba(255, 255, 255, 0.18);
@@ -23,12 +23,12 @@
   --glass-highlight-bottom: rgba(255, 255, 255, 0.05);
   --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 
-  /* Liquid Glass Clear Variant (Navbar / Ultra-Translucent) */
-  --glass-clear-bg: rgba(10, 15, 26, 0.35);
+  /* Liquid Glass Clear Variant */
+  --glass-clear-bg: rgba(10, 15, 26, 0.45);
   --glass-clear-border: rgba(255, 255, 255, 0.25);
 
   /* Backing Chips for High Legibility */
-  --chip-bg: rgba(10, 15, 26, 0.85);
+  --chip-bg: rgba(10, 15, 26, 0.88);
   --chip-border: rgba(255, 255, 255, 0.14);
 
   /* Typography */
@@ -56,7 +56,7 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Full-bleed Map Viewport */
+/* Map Viewport */
 #map {
   width: 100vw;
   height: 100vh;
@@ -64,7 +64,7 @@ html, body {
   background: var(--bg-dark);
 }
 
-/* Base Map CSS Dark Invert Filter */
+/* Invert Filter for Dark Basemap */
 .dark-tiles .leaflet-tile-container img {
   filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1);
 }
@@ -101,19 +101,21 @@ html, body {
   color: var(--text-main);
 }
 
-/* App Header Bar */
+/* App Navigation Header */
 .navbar {
   position: absolute;
   top: 16px;
   left: 16px;
   right: 16px;
   z-index: 1000;
-  height: 56px;
+  min-height: 56px;
   border-radius: 18px;
-  padding: 0 20px;
+  padding: 8px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   pointer-events: auto;
 }
 
@@ -149,10 +151,70 @@ html, body {
   border: 1px solid rgba(0, 229, 255, 0.3);
 }
 
+/* Country Search & Location Scale Controls */
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 480px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.search-input {
+  width: 100%;
+  background: rgba(10, 15, 26, 0.75);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.preset-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-scale {
+  background: var(--chip-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-scale:hover, .btn-scale.active {
+  background: rgba(0, 229, 255, 0.18);
+  border-color: var(--accent-cyan);
+  color: #ffffff;
+}
+
 .header-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   font-size: 0.85rem;
   color: var(--text-muted);
 }
@@ -174,10 +236,10 @@ html, body {
   border-color: rgba(255, 255, 255, 0.35);
 }
 
-/* Floating Layout Containers */
+/* Floating Layout Overlay */
 .ui-overlay {
   position: absolute;
-  top: 88px;
+  top: 96px;
   bottom: 24px;
   left: 16px;
   right: 16px;
@@ -271,7 +333,7 @@ html, body {
   color: var(--text-muted);
 }
 
-/* Right Panel: Hero Signature Detail Card */
+/* Right Panel: Hero Detail Card */
 .panel-right {
   display: flex;
   flex-direction: column;
@@ -335,7 +397,7 @@ html, body {
   text-decoration: none;
 }
 
-/* Bottom Right Control & Legend Cluster */
+/* Control & Legend Cluster */
 .controls-cluster {
   grid-column: 3;
   align-self: end;
@@ -426,7 +488,7 @@ html, body {
   color: var(--text-muted);
 }
 
-/* Empty & Soft Error States */
+/* Empty States */
 .empty-state {
   padding: 24px;
   text-align: center;
@@ -434,7 +496,7 @@ html, body {
   font-size: 0.85rem;
 }
 
-/* Modal Dialog */
+/* Modal Window */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -474,7 +536,7 @@ html, body {
   color: #cbd5e1;
 }
 
-/* Leaflet Custom Marker Overlay Overrides */
+/* Leaflet Custom Marker Overrides */
 .storm-marker-icon {
   background: transparent;
   border: none;
@@ -523,8 +585,14 @@ html, body {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
+  .navbar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+  }
   .ui-overlay {
+    top: 130px;
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     overflow-y: auto;
